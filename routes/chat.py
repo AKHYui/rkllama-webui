@@ -3,6 +3,7 @@ RKLLM NPU WebUI - 聊天路由 (核心)
 处理用户消息、SSE 流式输出、上下文拼接。
 """
 
+import asyncio
 import json
 import sqlite3
 import time
@@ -11,8 +12,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+import config
+import knowledge
 from config import DB_FILE, PROMPT_SIGN
-from database import get_system_prompt
+from database import get_system_prompt, get_session_kb
 import npu
 from routes.auth import require_auth
 
@@ -36,13 +39,27 @@ async def chat_endpoint(request: ChatRequest):
     else:
         clean_query = _handle_new_message(request.session_id, request.query)
 
+    # ---- 知识库检索（会话绑定了知识库时）----
+    kb_context = ""
+    try:
+        kb_id = get_session_kb(request.session_id)
+        if kb_id:
+            hits = await asyncio.to_thread(
+                knowledge.retrieve, kb_id, clean_query, config.KB_TOP_K)
+            if hits:
+                kb_context = "\n".join(
+                    f"[{i + 1}] {h['content']}" for i, h in enumerate(hits))
+                print(f"[kb] session={request.session_id} hits={len(hits)}")
+    except Exception as e:
+        print(f"[kb] retrieve error: {e}")
+
     # ---- 加载历史上下文 ----
     history_for_prompt = _load_history(request.session_id, clean_query)
 
     async def generate():
         async for sse in _generate_rkllm(
             clean_query, system_prompt, history_for_prompt,
-            request.session_id,
+            request.session_id, kb_context,
         ):
             yield sse
 
@@ -58,6 +75,7 @@ async def _generate_rkllm(
     system_prompt: str,
     history_for_prompt: list,
     session_id: str,
+    kb_context: str = "",
 ):
     """rkllm 引擎的 SSE 生成器"""
     async with npu.llm_lock:
@@ -73,7 +91,7 @@ async def _generate_rkllm(
 
             # 拼接上下文
             actual_query = _build_rkllm_prompt(
-                clean_query, system_prompt, history_for_prompt)
+                clean_query, system_prompt, history_for_prompt, kb_context)
 
             npu.llm_process.stdin.write(
                 (actual_query + "\n").encode("utf-8"))
@@ -164,10 +182,13 @@ async def _generate_rkllm(
 #  Prompt 构建
 # ============================================================
 
-def _build_rkllm_prompt(clean_query, system_prompt, history) -> str:
+def _build_rkllm_prompt(clean_query, system_prompt, history, kb_context="") -> str:
     """构建 rkllm 引擎的 prompt 字符串"""
+    prefix = ""
+    if kb_context:
+        prefix = "【知识库参考】\n" + kb_context + "\n\n"
     if history:
-        context_str = (
+        context_str = prefix + (
             "【系统设定】" + system_prompt +
             "【请参考以下历史对话上下文】"
         )
@@ -184,7 +205,7 @@ def _build_rkllm_prompt(clean_query, system_prompt, history) -> str:
         print(f"\n[prompt] context built, total: {len(context_str)} chars")
         return context_str
     else:
-        context_str = "【系统设定】" + system_prompt + f" User: {clean_query} AI:"
+        context_str = prefix + "【系统设定】" + system_prompt + f" User: {clean_query} AI:"
         print(f"\n[prompt] no history, total: {len(context_str)} chars")
         return context_str
 

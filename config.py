@@ -68,6 +68,22 @@ PROMPT_SIGN = "user:"
 DB_FILE = "chat_history.db"
 SESSION_SECRET_FILE="/opt/rkllama/.session_secret"
 
+# ================= 知识库 (RAG) =================
+KB_CHUNK_SIZE = 400
+KB_CHUNK_OVERLAP = 100
+KB_TOP_K = 3
+KB_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+if os.name == "nt":
+    # 开发机(Windows) 回退到本地目录，便于界面开发
+    _base = os.path.dirname(os.path.abspath(__file__))
+    EMBED_MODEL_DIR = os.path.join(_base, "models", "bge-small-zh-onnx")
+    CHROMA_DIR = os.path.join(_base, "chroma_db")
+else:
+    # 开发板 (RK3588 /opt/rkllama)
+    EMBED_MODEL_DIR = "/opt/rkllama/models/bge-small-zh-onnx"
+    CHROMA_DIR = "/opt/rkllama/chroma_db"
+
 
 def get_model_by_id(model_id):
     for m in MODELS:

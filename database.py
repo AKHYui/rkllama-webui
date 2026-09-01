@@ -20,6 +20,11 @@ def init_db():
                      (id TEXT PRIMARY KEY, title TEXT,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # 旧库迁移：sessions 增加知识库绑定列
+        c.execute("PRAGMA table_info(sessions)")
+        if "kb_id" not in [row[1] for row in c.fetchall()]:
+            c.execute("ALTER TABLE sessions ADD COLUMN kb_id TEXT")
+
         # 消息表
         c.execute('''CREATE TABLE IF NOT EXISTS messages
                      (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT,
@@ -92,6 +97,22 @@ def init_db():
                       username TEXT NOT NULL UNIQUE,
                       password_hash TEXT NOT NULL,
                       salt TEXT NOT NULL, session_token TEXT)''')
+
+        # ===== 知识库表 =====
+        c.execute('''CREATE TABLE IF NOT EXISTS knowledge_bases
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT NOT NULL UNIQUE,
+                      description TEXT DEFAULT '',
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS kb_documents
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      kb_id INTEGER NOT NULL,
+                      filename TEXT NOT NULL,
+                      content TEXT NOT NULL,
+                      chunk_count INTEGER DEFAULT 0,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
         c.execute("SELECT COUNT(*) FROM users")
         if c.fetchone()[0] == 0:
@@ -224,3 +245,132 @@ def delete_model(model_id):
         c.execute("DELETE FROM models WHERE model_id = ?", (model_id,))
         conn.commit()
     return {"status": "success"}
+
+
+# ===== 知识库管理 =====
+
+def get_kbs():
+    """获取全部知识库（含文档数）"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute(
+                "SELECT k.*, (SELECT COUNT(*) FROM kb_documents d WHERE d.kb_id = k.id) AS doc_count "
+                "FROM knowledge_bases k ORDER BY k.id")
+            return [dict(r) for r in c.fetchall()]
+    except Exception:
+        return []
+
+
+def get_kb_by_id(kb_id):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT * FROM knowledge_bases WHERE id = ?", (kb_id,))
+            row = c.fetchone()
+            return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def kb_name_exists(name):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM knowledge_bases WHERE name = ?", (name,))
+            return c.fetchone()[0] > 0
+    except Exception:
+        return False
+
+
+def add_kb(name, description=""):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO knowledge_bases (name, description) VALUES (?, ?)",
+                  (name, description))
+        conn.commit()
+        return c.lastrowid
+
+
+def update_kb(kb_id, name, description):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE knowledge_bases SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (name, description, kb_id))
+        conn.commit()
+
+
+def delete_kb(kb_id):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM kb_documents WHERE kb_id = ?", (kb_id,))
+        c.execute("DELETE FROM knowledge_bases WHERE id = ?", (kb_id,))
+        c.execute("UPDATE sessions SET kb_id = NULL WHERE kb_id = ?", (kb_id,))
+        conn.commit()
+
+
+# ===== 知识库文档 =====
+
+def get_kb_documents(kb_id):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute(
+                "SELECT id, kb_id, filename, chunk_count, created_at "
+                "FROM kb_documents WHERE kb_id = ? ORDER BY id DESC", (kb_id,))
+            return [dict(r) for r in c.fetchall()]
+    except Exception:
+        return []
+
+
+def add_kb_document(kb_id, filename, content, chunk_count):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO kb_documents (kb_id, filename, content, chunk_count) VALUES (?, ?, ?, ?)",
+            (kb_id, filename, content, chunk_count))
+        conn.commit()
+        return c.lastrowid
+
+
+def get_kb_document(doc_id):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT * FROM kb_documents WHERE id = ?", (doc_id,))
+            row = c.fetchone()
+            return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def delete_kb_document(doc_id):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM kb_documents WHERE id = ?", (doc_id,))
+        conn.commit()
+
+
+# ===== 会话知识库绑定 =====
+
+def set_session_kb(session_id, kb_id):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE sessions SET kb_id = ? WHERE id = ?", (kb_id, session_id))
+        conn.commit()
+
+
+def get_session_kb(session_id):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT kb_id FROM sessions WHERE id = ?", (session_id,))
+            row = c.fetchone()
+            return row[0] if row else None
+    except Exception:
+        return None

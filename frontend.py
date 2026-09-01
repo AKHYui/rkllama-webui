@@ -226,6 +226,60 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 知识库弹窗 -->
+        <div id="knowledgeModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div>
+                        <h3 id="kbModalTitle" class="text-lg font-bold text-white">知识库</h3>
+                        <p id="kbModalSub" class="text-xs text-gray-400 mt-1">管理知识库文档，绑定到会话后自动检索注入</p>
+                    </div>
+                    <button onclick="closeKnowledgeModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <!-- 主视图: 知识库列表 -->
+                <div id="kbMainView" class="flex-1 flex flex-col min-h-0">
+                    <div class="p-4 border-b border-gray-700">
+                        <button onclick="showKbForm()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">+ 新建知识库</button>
+                    </div>
+                    <div id="kbList" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+                    <div id="kbForm" class="hidden p-4 border-t border-gray-700 bg-gray-750 space-y-3">
+                        <input id="kbName" type="text" placeholder="知识库名称" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" maxlength="50">
+                        <input id="kbDesc" type="text" placeholder="描述 (可选)" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" maxlength="200">
+                        <p id="kbFormErr" class="text-red-400 text-sm hidden"></p>
+                        <div class="flex gap-2">
+                            <button id="kbSaveBtn" onclick="saveKb()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">保存</button>
+                            <button onclick="cancelKbForm()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 文档管理视图 -->
+                <div id="kbDocView" class="hidden flex-1 flex flex-col min-h-0">
+                    <div class="p-4 border-b border-gray-700 space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <button onclick="backKbList()" class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors border border-gray-600">← 返回</button>
+                            <span id="kbDocTitle" class="text-sm text-gray-300"></span>
+                            <input type="file" id="kbFileInput" accept=".txt,.md" class="hidden" onchange="uploadKbFile()">
+                            <button onclick="document.getElementById('kbFileInput').click()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">上传 txt/md</button>
+                        </div>
+                        <div class="flex gap-2 items-start">
+                            <textarea id="kbPaste" rows="2" placeholder="粘贴文本内容，直接入库..." class="flex-1 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"></textarea>
+                            <button onclick="pasteKbText()" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors shrink-0">入库</button>
+                        </div>
+                        <div class="flex gap-2 items-start">
+                            <input id="kbTestQuery" type="text" placeholder="输入测试问题，检索最相关的知识片段..." class="flex-1 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <button onclick="testKbQuery()" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors shrink-0">检索测试</button>
+                        </div>
+                        <div id="kbTestResult" class="text-xs space-y-1.5"></div>
+                    </div>
+                    <div id="kbDocList" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- 移动端侧边栏遮罩 -->
         <div id="mobileOverlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
 
@@ -245,6 +299,7 @@ html_content = r"""
                 </button>
                 <button onclick="closeRightDrawer(); openPromptManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-cyan-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg><span class="text-gray-200 font-medium">提示词管理</span></button>
                 <button onclick="closeRightDrawer(); openModelManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-green-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="text-gray-200 font-medium">模型挂载</span></button>
+                <button onclick="closeRightDrawer(); openKnowledgeModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-purple-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg><span class="text-gray-200 font-medium">知识库</span></button>
                 <button onclick="closeRightDrawer(); doLogout()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-red-500/50 text-left">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span class="text-gray-200 font-medium">退出登录</span>
@@ -286,7 +341,17 @@ html_content = r"""
                             <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                         </div>
                     </div>
-                    
+
+                    <!-- 知识库绑定选择 -->
+                    <div class="relative w-28 sm:w-32">
+                        <select id="kbSelect" onchange="handleKbBind()" title="绑定知识库，检索结果将注入对话" class="block appearance-none w-full bg-gray-700 border border-gray-600 text-white py-1.5 pl-2 pr-6 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs font-medium cursor-pointer truncate">
+                            <option value="">知识库: 无</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-gray-300">
+                            <svg class="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                    </div>
+
                     <!-- ========== 新增：系统提示词按钮 ========== -->
                     <button onclick="openSystemPromptModal()" id="systemPromptBtn" class="p-1.5 sm:p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors border border-gray-600 hover:border-blue-500/50" title="系统提示词设置">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -365,6 +430,7 @@ html_content = r"""
             const userInput = document.getElementById('userInput');
             const sendBtn = document.getElementById('sendBtn');
             const modelSelect = document.getElementById('modelSelect');
+            const kbSelect = document.getElementById('kbSelect');
             const statusDot = document.getElementById('statusDot');
             const sessionList = document.getElementById('sessionList');
             const sidebar = document.getElementById('sidebar');
@@ -773,6 +839,284 @@ html_content = r"""
                 }
             }
 
+            // ===== 知识库函数 =====
+            let kbs = [];
+            let currentKbId = null;
+            let editingKbId = null;
+            const knowledgeModal = document.getElementById('knowledgeModal');
+            const kbMainView = document.getElementById('kbMainView');
+            const kbDocView = document.getElementById('kbDocView');
+
+            if (knowledgeModal) {
+                knowledgeModal.addEventListener('click', function(e) {
+                    if (e.target === knowledgeModal) closeKnowledgeModal();
+                });
+            }
+
+            function openKnowledgeModal() {
+                loadKbs();
+                showKbMainView();
+                knowledgeModal.classList.remove('modal-hidden');
+            }
+            function closeKnowledgeModal() {
+                knowledgeModal.classList.add('modal-hidden');
+                cancelKbForm();
+            }
+            function showKbMainView() {
+                currentKbId = null;
+                kbDocView.classList.add('hidden');
+                kbMainView.classList.remove('hidden');
+                document.getElementById('kbModalTitle').textContent = '知识库';
+                document.getElementById('kbModalSub').textContent = '管理知识库文档，绑定到会话后自动检索注入';
+            }
+            function showKbDocView(kbId) {
+                currentKbId = kbId;
+                const kb = kbs.find(k => k.id === kbId);
+                document.getElementById('kbModalTitle').textContent = '文档管理';
+                document.getElementById('kbModalSub').textContent = kb ? '知识库: ' + kb.name : '';
+                kbMainView.classList.add('hidden');
+                kbDocView.classList.remove('hidden');
+                document.getElementById('kbTestResult').innerHTML = '';
+                loadKbDocs();
+            }
+            function backKbList() {
+                showKbMainView();
+                loadKbs();
+            }
+
+            async function loadKbs() {
+                try {
+                    const res = await fetch('/api/kbs');
+                    const data = await res.json();
+                    kbs = data.kbs || [];
+                    renderKbSelect();
+                    renderKbList();
+                } catch(e) {
+                    console.error("加载知识库失败:", e);
+                }
+            }
+
+            function renderKbSelect() {
+                if (!kbSelect) return;
+                const cur = kbSelect.value;
+                let html = '<option value="">知识库: 无</option>';
+                for (const k of kbs) {
+                    html += '<option value="' + k.id + '">' + escapeHtml(k.name) + '</option>';
+                }
+                kbSelect.innerHTML = html;
+                kbSelect.value = cur;
+            }
+
+            function renderKbList() {
+                const c = document.getElementById('kbList');
+                if (!c) return;
+                if (kbs.length === 0) {
+                    c.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">暂无知识库，点击「新建知识库」创建</div>';
+                    return;
+                }
+                let html = '';
+                for (const k of kbs) {
+                    html += '<div class="bg-gray-700/50 rounded-xl p-3 border border-gray-600 hover:border-purple-500/50 transition-colors">';
+                    html += '<div class="flex justify-between items-start mb-1">';
+                    html += '<div class="min-w-0"><span class="text-gray-100 font-medium text-sm">' + escapeHtml(k.name) + '</span>';
+                    if (k.description) html += '<div class="text-gray-400 text-xs mt-0.5 truncate">' + escapeHtml(k.description) + '</div>';
+                    html += '</div>';
+                    html += '<div class="flex gap-1 shrink-0">';
+                    html += '<button onclick="showKbDocView(' + k.id + ')" class="text-xs px-2 py-1 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded border border-purple-500/30 transition-colors">文档</button>';
+                    html += '<button onclick="editKb(' + k.id + ')" class="text-xs px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 rounded border border-blue-500/30 transition-colors">编辑</button>';
+                    html += '<button onclick="deleteKb(' + k.id + ')" class="text-xs px-2 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 rounded border border-red-500/30 transition-colors">删除</button>';
+                    html += '</div></div>';
+                    html += '<div class="text-gray-500 text-xs mt-1">文档 ' + k.doc_count + ' 篇</div>';
+                    html += '</div>';
+                }
+                c.innerHTML = html;
+            }
+
+            function showKbForm(id) {
+                editingKbId = id || null;
+                const k = id ? kbs.find(x => x.id === id) : null;
+                document.getElementById('kbName').value = k ? k.name : '';
+                document.getElementById('kbDesc').value = k ? (k.description || '') : '';
+                document.getElementById('kbFormErr').classList.add('hidden');
+                document.getElementById('kbForm').classList.remove('hidden');
+            }
+            function editKb(id) { showKbForm(id); }
+            function cancelKbForm() {
+                editingKbId = null;
+                document.getElementById('kbForm').classList.add('hidden');
+            }
+
+            async function saveKb() {
+                const name = document.getElementById('kbName').value.trim();
+                const description = document.getElementById('kbDesc').value.trim();
+                const errEl = document.getElementById('kbFormErr');
+                if (!name) { errEl.textContent = '名称不能为空'; errEl.classList.remove('hidden'); return; }
+                try {
+                    let res;
+                    if (editingKbId) {
+                        res = await fetch('/api/kbs/' + editingKbId, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description })
+                        });
+                    } else {
+                        res = await fetch('/api/kbs', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description })
+                        });
+                    }
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast(editingKbId ? '知识库已更新' : '知识库已创建');
+                        cancelKbForm();
+                        await loadKbs();
+                    } else {
+                        errEl.textContent = data.message || '保存失败';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    errEl.textContent = '保存失败: ' + e.message;
+                    errEl.classList.remove('hidden');
+                }
+            }
+
+            async function deleteKb(id) {
+                const k = kbs.find(x => x.id === id);
+                if (!confirm('确定删除知识库 "' + (k?.name || '') + '" 及其全部文档？')) return;
+                try {
+                    const res = await fetch('/api/kbs/' + id, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast('已删除');
+                        await loadKbs();
+                    } else {
+                        alert(data.message || '删除失败');
+                    }
+                } catch(e) {
+                    alert('删除失败: ' + e.message);
+                }
+            }
+
+            async function loadKbDocs() {
+                try {
+                    const res = await fetch('/api/kbs/' + currentKbId + '/documents');
+                    const data = await res.json();
+                    renderKbDocs(data.documents || []);
+                } catch(e) {
+                    console.error("加载文档失败:", e);
+                }
+            }
+
+            function renderKbDocs(docs) {
+                const c = document.getElementById('kbDocList');
+                document.getElementById('kbDocTitle').textContent = '共 ' + docs.length + ' 篇文档';
+                if (docs.length === 0) {
+                    c.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">暂无文档，上传文件或粘贴文本入库</div>';
+                    return;
+                }
+                let html = '';
+                for (const d of docs) {
+                    html += '<div class="bg-gray-700/50 rounded-xl p-3 border border-gray-600 flex justify-between items-center gap-2">';
+                    html += '<div class="min-w-0"><div class="text-gray-100 text-sm truncate">' + escapeHtml(d.filename) + '</div>';
+                    html += '<div class="text-gray-500 text-xs mt-0.5">' + d.chunk_count + ' 个分片 · ' + d.created_at + '</div></div>';
+                    html += '<button onclick="deleteKbDoc(' + d.id + ')" class="text-xs px-2 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 rounded border border-red-500/30 transition-colors shrink-0">删除</button>';
+                    html += '</div>';
+                }
+                c.innerHTML = html;
+            }
+
+            async function uploadKbFile() {
+                const input = document.getElementById('kbFileInput');
+                const file = input.files[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append('file', file);
+                try {
+                    const res = await fetch('/api/kbs/' + currentKbId + '/documents', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.status === 'success') showToast('已入库 ' + data.chunk_count + ' 个分片');
+                    else alert(data.message || '上传失败');
+                    input.value = '';
+                    await loadKbDocs();
+                    await loadKbs();
+                } catch(e) {
+                    alert('上传失败: ' + e.message);
+                }
+            }
+
+            async function pasteKbText() {
+                const content = document.getElementById('kbPaste').value.trim();
+                if (!content) { alert('请输入文本'); return; }
+                const filename = 'paste_' + Date.now() + '.txt';
+                try {
+                    const res = await fetch('/api/kbs/' + currentKbId + '/documents/text', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename, content })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast('已入库 ' + data.chunk_count + ' 个分片');
+                        document.getElementById('kbPaste').value = '';
+                    } else {
+                        alert(data.message || '入库失败');
+                    }
+                    await loadKbDocs();
+                    await loadKbs();
+                } catch(e) {
+                    alert('入库失败: ' + e.message);
+                }
+            }
+
+            async function deleteKbDoc(id) {
+                if (!confirm('删除该文档及其向量分片？')) return;
+                try {
+                    const res = await fetch('/api/kbs/' + currentKbId + '/documents/' + id, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast('已删除');
+                        await loadKbDocs();
+                        await loadKbs();
+                    } else {
+                        alert(data.message || '删除失败');
+                    }
+                } catch(e) {
+                    alert('删除失败: ' + e.message);
+                }
+            }
+
+            async function testKbQuery() {
+                const q = document.getElementById('kbTestQuery').value.trim();
+                if (!q) { alert('请输入测试问题'); return; }
+                const box = document.getElementById('kbTestResult');
+                box.innerHTML = '<span class="text-gray-500">检索中...</span>';
+                try {
+                    const res = await fetch('/api/kbs/' + currentKbId + '/test', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, top_k: 3 })
+                    });
+                    const data = await res.json();
+                    if (data.status !== 'success') { box.innerHTML = '<span class="text-red-400">' + (data.message || '失败') + '</span>'; return; }
+                    if (!data.hits.length) { box.innerHTML = '<span class="text-gray-500">无命中</span>'; return; }
+                    let html = '';
+                    data.hits.forEach((h, i) => {
+                        html += '<div class="border border-gray-700 rounded p-2"><div class="text-gray-500">#' + (i + 1) + ' · dist=' + h.distance + '</div><div class="text-gray-300">' + escapeHtml(h.content) + '</div></div>';
+                    });
+                    box.innerHTML = html;
+                } catch(e) {
+                    box.innerHTML = '<span class="text-red-400">检索失败</span>';
+                }
+            }
+
+            async function handleKbBind() {
+                if (!currentSessionId) { kbSelect.value = ''; return; }
+                const kb_id = kbSelect.value ? parseInt(kbSelect.value, 10) : null;
+                try {
+                    const res = await fetch('/api/sessions/' + currentSessionId + '/kb', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kb_id })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') showToast(kb_id ? '已绑定知识库' : '已取消绑定');
+                    else alert(data.message || '绑定失败');
+                } catch(e) {
+                    alert('绑定失败: ' + e.message);
+                }
+            }
+
             // --- 登录/退出函数 ---
             async function doLogin() {
                 const username = document.getElementById('loginUsername').value.trim();
@@ -803,6 +1147,7 @@ html_content = r"""
                         await loadSessions();
                         await loadSystemPrompt();
                         await loadCustomPrompts();
+                        await loadKbs();
                     } else {
                         err.textContent = data.message || '登录失败';
                         err.classList.remove('hidden');
@@ -943,6 +1288,7 @@ html_content = r"""
                     const newSession = await res.json();
                     sessions.unshift(newSession);
                     currentSessionId = newSession.id;
+                    if (kbSelect) kbSelect.value = '';
                     renderSidebar();
                     renderChat([]);
                     if(window.innerWidth < 768) toggleSidebar();
@@ -975,6 +1321,8 @@ html_content = r"""
                 if (isGenerating || !id) return;
                 currentSessionId = id;
                 renderSidebar();
+                const sess = sessions.find(s => s.id === id);
+                if (kbSelect) kbSelect.value = sess && sess.kb_id ? sess.kb_id : '';
                 try {
                     const res = await fetch(`/api/sessions/${id}/messages`);
                     const messages = await res.json();
@@ -1151,6 +1499,7 @@ html_content = r"""
                         await loadSessions();
                         await loadSystemPrompt();
                         await loadCustomPrompts();
+                        await loadKbs();
                     } else {
                         document.getElementById('loginOverlay').classList.remove('hidden');
                     }
