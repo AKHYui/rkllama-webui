@@ -9,7 +9,7 @@
 ## 功能特性
 
 - 💬 **多会话聊天**：创建/删除会话、会话历史、SSE 流式输出、重新生成、导出聊天记录
-- 🔐 **登录认证**：默认账号 `admin` / `admin123`，支持修改密码，会话级 token 校验
+- 🔐 **登录认证**：默认账号 `admin` / `admin123`，支持修改密码，会话级 token 校验，登录随机验证码（防暴力破解）
 - 🧩 **模型挂载**：模型不再写死，可在设置里增删改模型配置（文件路径、总上下文 ≤16K、单次回复量、**温度/核采样/重复惩罚**、引擎类型），保存时自动校验文件存在性
 - ⚙️ **驱动挂载**：可在设置里修改 `llm_demo` 可执行文件路径，方便部署环境差异
 - 📚 **知识库（RAG）**：上传 txt/md 或粘贴文本，`bge-small-zh` ONNX 向量化 + ChromaDB 检索，每个会话可绑定不同知识库，自动把检索片段注入对话
@@ -224,6 +224,7 @@ llm_demo model_path max_new_tokens max_context_len \
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/api/auth/captcha` | 获取登录验证码（返回 id + 图片） |
 | POST | `/api/auth/login` `/api/auth/logout` | 登录/登出 |
 | GET/POST | `/api/sessions` | 会话列表/创建 |
 | GET/DELETE | `/api/sessions/{id}` | 会话详情/删除 |
