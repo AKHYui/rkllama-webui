@@ -1,0 +1,22 @@
+# 虚拟环境与缓存
+.venv/
+__pycache__/
+*.py[cod]
+
+# 备份文件与备份目录
+*.bak
+*.old
+backups/
+
+# 数据库文件
+*.db
+*.sqlite3
+
+# 密钥与敏感配置
+.*_secret*
+*.key
+.env
+
+# 日志 (预留)
+*.log
+logs/
