@@ -114,6 +114,12 @@ def init_db():
                       chunk_count INTEGER DEFAULT 0,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # ===== 通用设置表 (key-value) =====
+        c.execute('''CREATE TABLE IF NOT EXISTS settings
+                     (key TEXT PRIMARY KEY,
+                      value TEXT,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
         c.execute("SELECT COUNT(*) FROM users")
         if c.fetchone()[0] == 0:
             salt = secrets.token_hex(16)
@@ -374,3 +380,27 @@ def get_session_kb(session_id):
             return row[0] if row else None
     except Exception:
         return None
+
+
+# ===== 通用设置 (key-value) =====
+
+def get_setting(key, default=None):
+    """读取设置项，不存在返回 default"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = c.fetchone()
+            return row[0] if row else default
+    except Exception:
+        return default
+
+
+def set_setting(key, value):
+    """写入设置项"""
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)", (key, value))
+        conn.commit()

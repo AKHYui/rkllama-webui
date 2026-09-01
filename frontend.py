@@ -280,6 +280,35 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 驱动挂载弹窗 -->
+        <div id="driverModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">驱动挂载</h3>
+                        <p class="text-xs text-gray-400 mt-1">配置 RKNN rkllm 引擎的可执行文件（llm_demo）路径</p>
+                    </div>
+                    <button onclick="closeDriverModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-3">
+                    <label class="text-xs text-gray-400 block">llm_demo 可执行文件路径</label>
+                    <input id="driverPath" type="text" placeholder="/usr/local/bin/llm_demo" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <label class="flex items-center text-xs text-gray-400 gap-2">
+                        <input id="driverSkip" type="checkbox" class="accent-orange-500"> 跳过可执行性校验
+                    </label>
+                    <p class="text-xs text-gray-500">填写绝对路径或 PATH 中的命令名。保存后下次启动引擎时生效，当前引擎不会自动重启。</p>
+                    <p id="driverErr" class="text-red-400 text-sm hidden"></p>
+                    <p id="driverSuccess" class="text-green-400 text-sm hidden"></p>
+                    <div class="flex gap-2">
+                        <button onclick="saveDriver()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition-colors">保存</button>
+                        <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 移动端侧边栏遮罩 -->
         <div id="mobileOverlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
 
@@ -300,6 +329,7 @@ html_content = r"""
                 <button onclick="closeRightDrawer(); openPromptManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-cyan-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg><span class="text-gray-200 font-medium">提示词管理</span></button>
                 <button onclick="closeRightDrawer(); openModelManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-green-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="text-gray-200 font-medium">模型挂载</span></button>
                 <button onclick="closeRightDrawer(); openKnowledgeModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-purple-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg><span class="text-gray-200 font-medium">知识库</span></button>
+                <button onclick="closeRightDrawer(); openDriverModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-orange-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"></rect><rect x="3" y="14" width="18" height="6" rx="2"></rect><line x1="7" y1="7" x2="7" y2="7.01"></line><line x1="7" y1="17" x2="7" y2="17.01"></line></svg><span class="text-gray-200 font-medium">驱动挂载</span></button>
                 <button onclick="closeRightDrawer(); doLogout()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-red-500/50 text-left">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span class="text-gray-200 font-medium">退出登录</span>
@@ -1114,6 +1144,63 @@ html_content = r"""
                     else alert(data.message || '绑定失败');
                 } catch(e) {
                     alert('绑定失败: ' + e.message);
+                }
+            }
+
+            // ===== 驱动挂载函数 =====
+            const driverModal = document.getElementById('driverModal');
+
+            if (driverModal) {
+                driverModal.addEventListener('click', function(e) {
+                    if (e.target === driverModal) closeDriverModal();
+                });
+            }
+
+            async function openDriverModal() {
+                document.getElementById('driverErr').classList.add('hidden');
+                document.getElementById('driverSuccess').classList.add('hidden');
+                document.getElementById('driverSkip').checked = false;
+                try {
+                    const res = await fetch('/api/driver');
+                    const data = await res.json();
+                    document.getElementById('driverPath').value = data.path || '';
+                } catch(e) {
+                    document.getElementById('driverPath').value = '';
+                }
+                driverModal.classList.remove('modal-hidden');
+            }
+            function closeDriverModal() {
+                driverModal.classList.add('modal-hidden');
+            }
+
+            async function saveDriver() {
+                const path = document.getElementById('driverPath').value.trim();
+                const skip_check = document.getElementById('driverSkip').checked;
+                const errEl = document.getElementById('driverErr');
+                const okEl = document.getElementById('driverSuccess');
+                errEl.classList.add('hidden');
+                okEl.classList.add('hidden');
+                if (!path) {
+                    errEl.textContent = '路径不能为空';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/driver', {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path, skip_check })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        okEl.textContent = '已保存，下次启动引擎生效';
+                        okEl.classList.remove('hidden');
+                    } else {
+                        errEl.textContent = data.message || '保存失败';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    errEl.textContent = '保存失败: ' + e.message;
+                    errEl.classList.remove('hidden');
                 }
             }
 

@@ -9,7 +9,7 @@ import os
 from config import (
     SAMPLING_PARAMS, PROMPT_SIGN,
 )
-from database import get_models, get_model_by_id
+from database import get_models, get_model_by_id, get_setting
 
 
 # ---- 全局状态 ----
@@ -22,6 +22,11 @@ active_session_id = None
 llm_process = None
 
 llm_lock = asyncio.Lock()
+
+
+def get_llm_demo_path():
+    """获取 llm_demo 可执行文件路径（可在"驱动挂载"中配置）"""
+    return get_setting("llm_demo_path", "llm_demo") or "llm_demo"
 
 
 def get_current_model_config() -> dict:
@@ -63,15 +68,16 @@ async def start_llm():
     ctx_max = cfg.get("ctx_max", 4096)
     print(f"\n[*] 拉起 rkllm 引擎: {current_model_id} (ctx={ctx_max}, max_tokens={max_tokens})")
     sp = SAMPLING_PARAMS
+    llm_demo_path = get_llm_demo_path()
     try:
         llm_process = await asyncio.create_subprocess_exec(
-            "llm_demo", model_path, str(max_tokens), str(ctx_max),
+            llm_demo_path, model_path, str(max_tokens), str(ctx_max),
             str(sp.get("temperature", 0.8)), str(sp.get("top_p", 0.95)),
             str(sp.get("top_k", 40)), str(sp.get("repeat_penalty", 1.1)),
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT, env=env)
     except FileNotFoundError:
-        print("[!] 找不到可执行程序 llm_demo，请确认已安装 rkllm 工具链")
+        print(f"[!] 找不到可执行程序 {llm_demo_path}，请确认 rkllm 工具链已安装，或在设置->驱动挂载中配置正确路径")
         return False
     byte_buffer = b""
     full_log = ""
