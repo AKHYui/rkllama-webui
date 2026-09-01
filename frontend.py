@@ -1444,7 +1444,7 @@ html_content = r"""
                         </div>
                     </div>`;
                 
-                await fetch('/api/reset', { method: 'POST' });
+                await fetch('/api/npu/restart', { method: 'POST' });
                 
                 updateStatus('ready', '就绪');
                 await switchSession(currentSessionId); 

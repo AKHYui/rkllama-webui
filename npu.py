@@ -63,12 +63,16 @@ async def start_llm():
     ctx_max = cfg.get("ctx_max", 4096)
     print(f"\n[*] 拉起 rkllm 引擎: {current_model_id} (ctx={ctx_max}, max_tokens={max_tokens})")
     sp = SAMPLING_PARAMS
-    llm_process = await asyncio.create_subprocess_exec(
-        "llm_demo", model_path, str(max_tokens), str(ctx_max),
-        str(sp.get("temperature", 0.8)), str(sp.get("top_p", 0.95)),
-        str(sp.get("top_k", 40)), str(sp.get("repeat_penalty", 1.1)),
-        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT, env=env)
+    try:
+        llm_process = await asyncio.create_subprocess_exec(
+            "llm_demo", model_path, str(max_tokens), str(ctx_max),
+            str(sp.get("temperature", 0.8)), str(sp.get("top_p", 0.95)),
+            str(sp.get("top_k", 40)), str(sp.get("repeat_penalty", 1.1)),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT, env=env)
+    except FileNotFoundError:
+        print("[!] 找不到可执行程序 llm_demo，请确认已安装 rkllm 工具链")
+        return False
     byte_buffer = b""
     full_log = ""
     while True:
