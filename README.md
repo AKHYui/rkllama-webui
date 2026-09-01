@@ -119,6 +119,24 @@ python main.py
 
 RKNN rkllm-toolkit 的 `llm_demo` 原版把采样参数**写死在代码里**（temperature=0.8、top_p=0.95、top_k=1、repeat_penalty=1.1、frequency/presence=0），命令行传参会被忽略。因此 WebUI 的模型级采样参数需要补丁版 `llm_demo`。
 
+> ⚠️ **版本限制**：本仓库提供的 llm_demo 增加传参方案**仅支持 rknn-llm（https://github.com/airockchip/rknn-llm）的 v1.3.0 版本**。其他版本源码结构不同，需按对应版本自行适配补丁。
+
+### 快速使用（已编译二进制）
+
+`deploy/llm_demo` 是已编译好的补丁版可执行文件（基于 rknn-llm v1.3.0 编译），**仅在 ROCK5T 开发板（RK3588 / aarch64 Linux）上测试通过**。如需快速使用：
+
+```bash
+# 备份原二进制后直接替换
+cp /usr/local/bin/llm_demo /usr/local/bin/llm_demo.orig
+mv /usr/local/bin/llm_demo /usr/local/bin/llm_demo.running   # 服务运行中时先改名再放新文件
+cp deploy/llm_demo /usr/local/bin/llm_demo
+chmod +x /usr/local/bin/llm_demo
+```
+
+> 在其他硬件/系统上使用前，建议重新编译（见下方源码编译），以匹配你的运行环境。
+
+### 源码编译
+
 本仓库已提供补丁源码 `deploy/llm_demo.cpp`（新增可选参数解析，不传时行为与原版一致）。在开发板上重新编译替换：
 
 ```bash
