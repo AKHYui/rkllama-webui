@@ -58,6 +58,13 @@ html_content = r"""
                     <input id="loginPassword" type="password" placeholder="密码"
                         class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         onkeydown="if(event.key==='Enter')doLogin()">
+                    <div class="flex items-center gap-2">
+                        <input id="loginCaptcha" type="text" placeholder="验证码" maxlength="4"
+                            class="w-full flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest"
+                            onkeydown="if(event.key==='Enter')doLogin()">
+                        <img id="captchaImg" src="" onclick="refreshCaptcha()" title="看不清？点击刷新"
+                            class="h-11 w-24 rounded-lg border border-gray-600 bg-gray-700 cursor-pointer object-cover shrink-0" alt="验证码">
+                    </div>
                     <p id="loginError" class="text-red-400 text-sm text-center hidden"></p>
                     <button onclick="doLogin()" id="loginBtn"
                         class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-medium transition-colors">
@@ -1230,14 +1237,37 @@ html_content = r"""
             }
 
             // --- 登录/退出函数 ---
+            let captchaId = '';
+
+            async function refreshCaptcha() {
+                const img = document.getElementById('captchaImg');
+                const input = document.getElementById('loginCaptcha');
+                if (img) img.src = '';
+                if (input) input.value = '';
+                try {
+                    const res = await fetch('/api/auth/captcha');
+                    const data = await res.json();
+                    captchaId = data.id || '';
+                    if (img && data.image) img.src = data.image;
+                } catch(e) {
+                    captchaId = '';
+                }
+            }
+
             async function doLogin() {
                 const username = document.getElementById('loginUsername').value.trim();
                 const password = document.getElementById('loginPassword').value;
+                const captcha = document.getElementById('loginCaptcha').value.trim();
                 const btn = document.getElementById('loginBtn');
                 const err = document.getElementById('loginError');
                 
                 if (!username || !password) {
                     err.textContent = '请输入用户名和密码';
+                    err.classList.remove('hidden');
+                    return;
+                }
+                if (!captcha) {
+                    err.textContent = '请输入验证码';
                     err.classList.remove('hidden');
                     return;
                 }
@@ -1250,7 +1280,7 @@ html_content = r"""
                     const res = await fetch('/api/auth/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, password })
+                        body: JSON.stringify({ username, password, captcha_id: captchaId, captcha })
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
@@ -1263,10 +1293,12 @@ html_content = r"""
                     } else {
                         err.textContent = data.message || '登录失败';
                         err.classList.remove('hidden');
+                        refreshCaptcha();
                     }
                 } catch(e) {
                     err.textContent = '网络错误，请重试';
                     err.classList.remove('hidden');
+                    refreshCaptcha();
                 } finally {
                     btn.disabled = false;
                     btn.textContent = '登 录';
@@ -1281,6 +1313,7 @@ html_content = r"""
                 sessions = [];
                 document.getElementById('loginOverlay').classList.remove('hidden');
                 document.getElementById('loginPassword').value = '';
+                refreshCaptcha();
             }
             
             // --- 修改密码函数 ---
@@ -1614,9 +1647,11 @@ html_content = r"""
                         await loadKbs();
                     } else {
                         document.getElementById('loginOverlay').classList.remove('hidden');
+                        refreshCaptcha();
                     }
                 } catch(e) {
                     document.getElementById('loginOverlay').classList.remove('hidden');
+                    refreshCaptcha();
                 }
             });
 
