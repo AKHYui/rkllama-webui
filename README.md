@@ -10,7 +10,7 @@
 
 - 💬 **多会话聊天**：创建/删除会话、会话历史、SSE 流式输出、重新生成、导出聊天记录
 - 🔐 **登录认证**：默认账号 `admin` / `admin123`，支持修改密码，会话级 token 校验
-- 🧩 **模型挂载**：模型不再写死，可在设置里增删改模型配置（文件路径、总上下文 ≤16K、单次回复量、引擎类型），保存时自动校验文件存在性
+- 🧩 **模型挂载**：模型不再写死，可在设置里增删改模型配置（文件路径、总上下文 ≤16K、单次回复量、**温度/核采样/重复惩罚**、引擎类型），保存时自动校验文件存在性
 - ⚙️ **驱动挂载**：可在设置里修改 `llm_demo` 可执行文件路径，方便部署环境差异
 - 📚 **知识库（RAG）**：上传 txt/md 或粘贴文本，`bge-small-zh` ONNX 向量化 + ChromaDB 检索，每个会话可绑定不同知识库，自动把检索片段注入对话
 - 🎛️ **采样参数**：temperature / top_p / top_k / repeat_penalty 实时调整
@@ -115,6 +115,44 @@ python main.py
 - 默认登录：`admin` / `admin123`（建议登录后立即修改密码）
 - 首次启动自动初始化 SQLite（含旧库迁移），并从 `config.MODELS` 导入默认模型
 
+## llm_demo 采样参数补丁（模型级采样参数生效前提）
+
+RKNN rkllm-toolkit 的 `llm_demo` 原版把采样参数**写死在代码里**（temperature=0.8、top_p=0.95、top_k=1、repeat_penalty=1.1、frequency/presence=0），命令行传参会被忽略。因此 WebUI 的模型级采样参数需要补丁版 `llm_demo`。
+
+本仓库已提供补丁源码 `deploy/llm_demo.cpp`（新增可选参数解析，不传时行为与原版一致）。在开发板上重新编译替换：
+
+```bash
+# 定位 rkllm-toolkit 源码目录（本板在 /opt/rknn-llm-release-v1.3.0）
+INCLUDE=/opt/rknn-llm-release-v1.3.0/rkllm-runtime/Linux/librkllm_api/include
+LIB=/opt/rknn-llm-release-v1.3.0/rkllm-runtime/Linux/librkllm_api/aarch64
+
+# 备份原二进制与源码
+cp /usr/local/bin/llm_demo /usr/local/bin/llm_demo.orig
+cp /opt/rknn-llm-release-v1.3.0/examples/rkllm_api_demo/deploy/src/llm_demo.cpp{,.orig}
+
+# 用补丁版覆盖源码并编译
+cp deploy/llm_demo.cpp /opt/rknn-llm-release-v1.3.0/examples/rkllm_api_demo/deploy/src/llm_demo.cpp
+g++ -std=c++11 -O2 -o llm_demo \
+    /opt/rknn-llm-release-v1.3.0/examples/rkllm_api_demo/deploy/src/llm_demo.cpp \
+    -I"$INCLUDE" -L"$LIB" -lrkllmrt
+
+# 替换（若服务正在运行会报 Text file busy，先 mv 再 cp）
+mv /usr/local/bin/llm_demo /usr/local/bin/llm_demo.running
+mv llm_demo /usr/local/bin/llm_demo
+chmod +x /usr/local/bin/llm_demo
+```
+
+补丁后的参数协议：
+
+```
+llm_demo model_path max_new_tokens max_context_len \
+        [temperature] [top_p] [top_k] [repeat_penalty] \
+        [frequency_penalty] [presence_penalty]
+```
+
+- `frequency_penalty` / `presence_penalty`：RKLLM API **支持**（`RKLLMParam` 字段），原版 demo 写死为 0；补丁版已可从命令行传入，WebUI 默认传 0（全局 `SAMPLING_PARAMS` 可调）
+- 未使用补丁版时，模型级采样参数不会真正生效（仍为 demo 内置值）
+
 ## 使用说明
 
 ### 聊天
@@ -125,9 +163,13 @@ python main.py
 
 ### 模型挂载（更多 → 模型挂载）
 
-- 增删改模型配置：标识、名称、文件路径、总上下文（1-16384）、单次回复量（≤总上下文）、引擎类型
+- 增删改模型配置：标识、名称、文件路径、总上下文（1-16384）、单次回复量（≤总上下文）、**采样参数**（温度 0.1-2.0、Top-P 0-1、重复惩罚 1.0-2.0）、引擎类型
+- 采样参数可选：留空则使用全局采样参数（config.SAMPLING_PARAMS）；新模型默认 温度0.85 / Top-P 0.9 / 重复惩罚1.25
+- 每个模型的采样参数在引擎启动时自动携带，切换模型即生效
 - 保存校验：总上下文不超过 16K、单次回复量不超过上下文、模型文件必须存在（可勾选"跳过文件存在校验"用于开发机）
 - 当前正在使用的模型不可删除
+
+> ⚠️ **重要**：RKNN 的 `llm_demo` 原版将采样参数写死（忽略命令行参数）。本仓库提供了补丁版源码 `deploy/llm_demo.cpp`，需重新编译替换后，上述模型级采样参数才能真正生效（见下文"llm_demo 补丁"）。
 
 ### 驱动挂载（更多 → 驱动挂载）
 
@@ -152,7 +194,7 @@ python main.py
 | 项 | 默认值 | 说明 |
 |---|---|---|
 | `MODELS` | 7 个示例模型 | 首次启动写入数据库的种子数据，之后以数据库为准 |
-| `SAMPLING_PARAMS` | temp=0.85, top_p=0.9, top_k=1, rp=1.05 | 引擎采样参数 |
+| `SAMPLING_PARAMS` | temp=0.85, top_p=0.9, top_k=1, rp=1.25, freq=0, pres=0 | 全局采样参数；模型挂载未单独配置时使用 |
 | `KB_CHUNK_SIZE` / `KB_CHUNK_OVERLAP` | 400 / 100 | 知识库分块大小与重叠 |
 | `KB_TOP_K` | 3 | 检索注入片段数 |
 | `EMBED_MODEL_DIR` | `/opt/rkllama/models/bge-small-zh-onnx` | 向量模型目录（Windows 开发机自动回退本地 `models/`） |

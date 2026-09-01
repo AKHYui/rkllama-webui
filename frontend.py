@@ -208,6 +208,11 @@ html_content = r"""
                         <input id="modelEditCtx" type="number" min="1" max="16384" placeholder="总上下文 (1-16384)" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <input id="modelEditMaxTok" type="number" min="1" max="16384" placeholder="单次回复量 tokens (≤总上下文)" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
+                    <div class="flex gap-2">
+                        <input id="modelEditTemp" type="number" step="0.05" min="0.1" max="2" placeholder="温度 (默认0.85)" class="w-1/3 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input id="modelEditTopP" type="number" step="0.05" min="0" max="1" placeholder="Top-P (默认0.9)" class="w-1/3 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input id="modelEditRepPen" type="number" step="0.05" min="1" max="2" placeholder="重复惩罚 (默认1.25)" class="w-1/3 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
                     <div class="flex items-center gap-4">
                         <select id="modelEditEngine" class="bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="rkllm">rkllm (NPU 引擎)</option>
@@ -768,6 +773,9 @@ html_content = r"""
                     html += '<div class="flex flex-wrap gap-2 mt-1.5 text-xs text-gray-400">';
                     html += '<span class="text-cyan-300/80 bg-cyan-600/20 px-1.5 py-0.5 rounded border border-cyan-500/20">' + engineLabel + '</span>';
                     html += '<span>上下文: ' + m.ctx_max + '</span><span>单次回复: ' + m.max_tokens + ' tokens</span>';
+                    if (m.temperature != null) html += '<span>温度: ' + m.temperature + '</span>';
+                    if (m.top_p != null) html += '<span>Top-P: ' + m.top_p + '</span>';
+                    if (m.repeat_penalty != null) html += '<span>重复惩罚: ' + m.repeat_penalty + '</span>';
                     html += '</div>';
                     html += '</div>';
                 }
@@ -781,6 +789,9 @@ html_content = r"""
                 document.getElementById('modelEditPath').value = '';
                 document.getElementById('modelEditCtx').value = '4096';
                 document.getElementById('modelEditMaxTok').value = '1024';
+                document.getElementById('modelEditTemp').value = '0.85';
+                document.getElementById('modelEditTopP').value = '0.9';
+                document.getElementById('modelEditRepPen').value = '1.25';
                 document.getElementById('modelEditEngine').value = 'rkllm';
                 document.getElementById('modelEditSkip').checked = false;
                 document.getElementById('modelEditErr').classList.add('hidden');
@@ -797,6 +808,9 @@ html_content = r"""
                 document.getElementById('modelEditPath').value = m.path;
                 document.getElementById('modelEditCtx').value = m.ctx_max;
                 document.getElementById('modelEditMaxTok').value = m.max_tokens;
+                document.getElementById('modelEditTemp').value = m.temperature != null ? m.temperature : '';
+                document.getElementById('modelEditTopP').value = m.top_p != null ? m.top_p : '';
+                document.getElementById('modelEditRepPen').value = m.repeat_penalty != null ? m.repeat_penalty : '';
                 document.getElementById('modelEditEngine').value = m.engine || 'rkllm';
                 document.getElementById('modelEditSkip').checked = false;
                 document.getElementById('modelEditErr').classList.add('hidden');
@@ -815,6 +829,9 @@ html_content = r"""
                 const path = document.getElementById('modelEditPath').value.trim();
                 const ctx_max = parseInt(document.getElementById('modelEditCtx').value, 10);
                 const max_tokens = parseInt(document.getElementById('modelEditMaxTok').value, 10);
+                const temperature = parseFloat(document.getElementById('modelEditTemp').value);
+                const top_p = parseFloat(document.getElementById('modelEditTopP').value);
+                const repeat_penalty = parseFloat(document.getElementById('modelEditRepPen').value);
                 const engine = document.getElementById('modelEditEngine').value;
                 const skip_check = document.getElementById('modelEditSkip').checked;
                 const errEl = document.getElementById('modelEditErr');
@@ -822,8 +839,16 @@ html_content = r"""
                 if (!model_id || !name || !path) { errEl.textContent = '标识、名称、路径不能为空'; errEl.classList.remove('hidden'); return; }
                 if (!ctx_max || ctx_max < 1 || ctx_max > 16384) { errEl.textContent = '总上下文必须在 1-16384 之间'; errEl.classList.remove('hidden'); return; }
                 if (!max_tokens || max_tokens < 1 || max_tokens > ctx_max) { errEl.textContent = '单次回复量必须在 1-' + ctx_max + ' 之间'; errEl.classList.remove('hidden'); return; }
+                if (!isNaN(temperature) && (temperature < 0.1 || temperature > 2)) { errEl.textContent = '温度必须在 0.1-2.0 之间'; errEl.classList.remove('hidden'); return; }
+                if (!isNaN(top_p) && (top_p < 0 || top_p > 1)) { errEl.textContent = 'Top-P 必须在 0-1 之间'; errEl.classList.remove('hidden'); return; }
+                if (!isNaN(repeat_penalty) && (repeat_penalty < 1 || repeat_penalty > 2)) { errEl.textContent = '重复惩罚必须在 1.0-2.0 之间'; errEl.classList.remove('hidden'); return; }
 
-                const body = { model_id, name, path, ctx_max, max_tokens, engine, skip_check };
+                const body = {
+                    model_id, name, path, ctx_max, max_tokens, engine, skip_check,
+                    temperature: isNaN(temperature) ? null : temperature,
+                    top_p: isNaN(top_p) ? null : top_p,
+                    repeat_penalty: isNaN(repeat_penalty) ? null : repeat_penalty
+                };
                 try {
                     let res;
                     if (editingModelId) {

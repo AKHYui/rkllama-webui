@@ -42,6 +42,9 @@ class ModelMountRequest(BaseModel):
     ctx_max: int = Field(..., ge=1, le=CTX_MAX_LIMIT)
     max_tokens: int = Field(..., ge=1, le=CTX_MAX_LIMIT)
     engine: str = Field("rkllm", max_length=16)
+    temperature: Optional[float] = Field(None, ge=0.1, le=2.0)
+    top_p: Optional[float] = Field(None, ge=0.0, le=1.0)
+    repeat_penalty: Optional[float] = Field(None, ge=1.0, le=2.0)
     skip_check: bool = False
 
 

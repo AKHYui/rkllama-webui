@@ -33,6 +33,16 @@ def get_current_model_config() -> dict:
     return get_model_by_id(current_model_id) or (get_models()[0] if get_models() else {})
 
 
+def _resolve_sampling(cfg, name, default):
+    """采样参数解析：模型配置 > 全局 SAMPLING_PARAMS > 内置默认"""
+    v = cfg.get(name)
+    if v is None:
+        v = SAMPLING_PARAMS.get(name)
+    if v is None:
+        v = default
+    return v
+
+
 # ============================================================
 #  清理
 # ============================================================
@@ -66,14 +76,20 @@ async def start_llm():
         return False
     max_tokens = cfg.get("max_tokens", 1024)
     ctx_max = cfg.get("ctx_max", 4096)
-    print(f"\n[*] 拉起 rkllm 引擎: {current_model_id} (ctx={ctx_max}, max_tokens={max_tokens})")
-    sp = SAMPLING_PARAMS
+    temperature = _resolve_sampling(cfg, "temperature", 0.85)
+    top_p = _resolve_sampling(cfg, "top_p", 0.9)
+    top_k = _resolve_sampling(cfg, "top_k", 1)
+    repeat_penalty = _resolve_sampling(cfg, "repeat_penalty", 1.25)
+    frequency_penalty = _resolve_sampling(cfg, "frequency_penalty", 0.0)
+    presence_penalty = _resolve_sampling(cfg, "presence_penalty", 0.0)
+    print(f"\n[*] 拉起 rkllm 引擎: {current_model_id} (ctx={ctx_max}, max_tokens={max_tokens}, "
+          f"temp={temperature}, top_p={top_p}, top_k={top_k}, rp={repeat_penalty})")
     llm_demo_path = get_llm_demo_path()
     try:
         llm_process = await asyncio.create_subprocess_exec(
             llm_demo_path, model_path, str(max_tokens), str(ctx_max),
-            str(sp.get("temperature", 0.8)), str(sp.get("top_p", 0.95)),
-            str(sp.get("top_k", 40)), str(sp.get("repeat_penalty", 1.1)),
+            str(temperature), str(top_p), str(top_k), str(repeat_penalty),
+            str(frequency_penalty), str(presence_penalty),
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT, env=env)
     except FileNotFoundError:

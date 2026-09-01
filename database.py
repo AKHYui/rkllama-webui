@@ -76,9 +76,19 @@ def init_db():
                       ctx_max INTEGER NOT NULL DEFAULT 4096,
                       max_tokens INTEGER NOT NULL DEFAULT 1024,
                       engine TEXT NOT NULL DEFAULT 'rkllm',
+                      temperature REAL,
+                      top_p REAL,
+                      repeat_penalty REAL,
                       sort_order INTEGER DEFAULT 0,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # 旧库迁移：models 增加采样参数字段
+        c.execute("PRAGMA table_info(models)")
+        mcols = [row[1] for row in c.fetchall()]
+        for col, ddl in (("temperature", "REAL"), ("top_p", "REAL"), ("repeat_penalty", "REAL")):
+            if col not in mcols:
+                c.execute(f"ALTER TABLE models ADD COLUMN {col} {ddl}")
 
         # 首次初始化时从 config.MODELS 导入默认模型
         c.execute("SELECT COUNT(*) FROM models")
@@ -223,10 +233,11 @@ def add_model(data):
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO models (model_id, name, path, ctx_max, max_tokens, engine) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO models (model_id, name, path, ctx_max, max_tokens, engine, "
+            "temperature, top_p, repeat_penalty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (data["model_id"], data["name"], data["path"],
-             data["ctx_max"], data["max_tokens"], data["engine"]))
+             data["ctx_max"], data["max_tokens"], data["engine"],
+             data.get("temperature"), data.get("top_p"), data.get("repeat_penalty")))
         conn.commit()
     return {"status": "success", "model": get_model_by_id(data["model_id"])}
 
@@ -237,9 +248,12 @@ def update_model(model_id, data):
         c = conn.cursor()
         c.execute(
             "UPDATE models SET name=?, path=?, ctx_max=?, max_tokens=?, engine=?, "
+            "temperature=?, top_p=?, repeat_penalty=?, "
             "updated_at=CURRENT_TIMESTAMP WHERE model_id=?",
             (data["name"], data["path"], data["ctx_max"],
-             data["max_tokens"], data["engine"], model_id))
+             data["max_tokens"], data["engine"],
+             data.get("temperature"), data.get("top_p"), data.get("repeat_penalty"),
+             model_id))
         conn.commit()
     return {"status": "success", "model": get_model_by_id(model_id)}
 
