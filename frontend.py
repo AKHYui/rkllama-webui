@@ -182,6 +182,50 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 模型挂载弹窗 -->
+        <div id="modelManagerModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">模型挂载</h3>
+                        <p class="text-xs text-gray-400 mt-1">管理可用的本地模型，切换模型后重新加载引擎生效</p>
+                    </div>
+                    <button onclick="closeModelManagerModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 border-b border-gray-700">
+                    <button onclick="showNewModelForm()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">+ 新建模型</button>
+                </div>
+                <div id="modelList" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+                <div id="modelEditForm" class="hidden p-4 border-t border-gray-700 bg-gray-750 space-y-3">
+                    <div class="flex gap-2">
+                        <input id="modelEditId" type="text" placeholder="模型标识 (字母/数字/点/下划线/连字符)" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="64">
+                        <input id="modelEditName" type="text" placeholder="模型名称" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="50">
+                    </div>
+                    <input id="modelEditPath" type="text" placeholder="模型文件路径, 如 /opt/models/xxx.rkllm" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div class="flex gap-2">
+                        <input id="modelEditCtx" type="number" min="1" max="16384" placeholder="总上下文 (1-16384)" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input id="modelEditMaxTok" type="number" min="1" max="16384" placeholder="单次回复量 tokens (≤总上下文)" class="w-1/2 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <select id="modelEditEngine" class="bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="rkllm">rkllm (NPU 引擎)</option>
+                            <option value="llama">llama.cpp 引擎</option>
+                        </select>
+                        <label class="flex items-center text-xs text-gray-400 gap-2">
+                            <input id="modelEditSkip" type="checkbox" class="accent-blue-500"> 跳过文件存在校验
+                        </label>
+                    </div>
+                    <p id="modelEditErr" class="text-red-400 text-sm hidden"></p>
+                    <div class="flex gap-2">
+                        <button id="modelSaveBtn" onclick="saveModelEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">保存</button>
+                        <button onclick="cancelModelEdit()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 移动端侧边栏遮罩 -->
         <div id="mobileOverlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
 
@@ -200,6 +244,7 @@ html_content = r"""
                     <span class="text-gray-200 font-medium">修改密码</span>
                 </button>
                 <button onclick="closeRightDrawer(); openPromptManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-cyan-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg><span class="text-gray-200 font-medium">提示词管理</span></button>
+                <button onclick="closeRightDrawer(); openModelManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-green-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="text-gray-200 font-medium">模型挂载</span></button>
                 <button onclick="closeRightDrawer(); doLogout()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-red-500/50 text-left">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span class="text-gray-200 font-medium">退出登录</span>
@@ -570,6 +615,164 @@ html_content = r"""
                 setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2000);
             }
 
+            // ===== 模型挂载函数 =====
+            let models = [];
+            let editingModelId = null;
+            const modelManagerModal = document.getElementById('modelManagerModal');
+            const modelEditForm = document.getElementById('modelEditForm');
+
+            if (modelManagerModal) {
+                modelManagerModal.addEventListener('click', function(e) {
+                    if (e.target === modelManagerModal) closeModelManagerModal();
+                });
+            }
+
+            function openModelManagerModal() {
+                loadModelList();
+                modelManagerModal.classList.remove('modal-hidden');
+            }
+            function closeModelManagerModal() {
+                modelManagerModal.classList.add('modal-hidden');
+                cancelModelEdit();
+            }
+
+            async function loadModelList() {
+                try {
+                    const res = await fetch('/api/models');
+                    const data = await res.json();
+                    models = data.models || [];
+                    renderModelList(data.current);
+                } catch(e) {
+                    console.error("加载模型失败:", e);
+                }
+            }
+
+            function renderModelList(currentId) {
+                const container = document.getElementById('modelList');
+                if (!container) return;
+                if (models.length === 0) {
+                    container.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">暂无挂载模型，点击「新建模型」添加</div>';
+                    return;
+                }
+                let html = '';
+                for (const m of models) {
+                    const isCurrent = m.model_id === currentId;
+                    const engineLabel = m.engine === 'llama' ? 'llama.cpp' : 'rkllm';
+                    html += '<div class="bg-gray-700/50 rounded-xl p-3 border border-gray-600 hover:border-blue-500/50 transition-colors">';
+                    html += '<div class="flex justify-between items-start mb-1">';
+                    html += '<div class="flex items-center gap-2 min-w-0">';
+                    html += '<span class="text-gray-100 font-medium text-sm truncate">' + escapeHtml(m.name) + '</span>';
+                    if (isCurrent) html += '<span class="text-[10px] px-1.5 py-0.5 bg-blue-600/40 text-blue-300 rounded border border-blue-500/40 shrink-0">当前</span>';
+                    html += '</div>';
+                    html += '<div class="flex gap-1 shrink-0">';
+                    html += '<button onclick="editModel(\'' + m.model_id + '\')" class="text-xs px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 rounded border border-blue-500/30 transition-colors">编辑</button>';
+                    html += '<button onclick="deleteModel(\'' + m.model_id + '\')" class="text-xs px-2 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 rounded border border-red-500/30 transition-colors">删除</button>';
+                    html += '</div></div>';
+                    html += '<div class="text-gray-400 text-xs mt-1 font-mono truncate">' + escapeHtml(m.path) + '</div>';
+                    html += '<div class="flex flex-wrap gap-2 mt-1.5 text-xs text-gray-400">';
+                    html += '<span class="text-cyan-300/80 bg-cyan-600/20 px-1.5 py-0.5 rounded border border-cyan-500/20">' + engineLabel + '</span>';
+                    html += '<span>上下文: ' + m.ctx_max + '</span><span>单次回复: ' + m.max_tokens + ' tokens</span>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                container.innerHTML = html;
+            }
+
+            function showNewModelForm() {
+                editingModelId = null;
+                document.getElementById('modelEditId').value = '';
+                document.getElementById('modelEditName').value = '';
+                document.getElementById('modelEditPath').value = '';
+                document.getElementById('modelEditCtx').value = '4096';
+                document.getElementById('modelEditMaxTok').value = '1024';
+                document.getElementById('modelEditEngine').value = 'rkllm';
+                document.getElementById('modelEditSkip').checked = false;
+                document.getElementById('modelEditErr').classList.add('hidden');
+                document.getElementById('modelSaveBtn').textContent = '新建';
+                modelEditForm.classList.remove('hidden');
+            }
+
+            function editModel(id) {
+                const m = models.find(x => x.model_id === id);
+                if (!m) return;
+                editingModelId = id;
+                document.getElementById('modelEditId').value = m.model_id;
+                document.getElementById('modelEditName').value = m.name;
+                document.getElementById('modelEditPath').value = m.path;
+                document.getElementById('modelEditCtx').value = m.ctx_max;
+                document.getElementById('modelEditMaxTok').value = m.max_tokens;
+                document.getElementById('modelEditEngine').value = m.engine || 'rkllm';
+                document.getElementById('modelEditSkip').checked = false;
+                document.getElementById('modelEditErr').classList.add('hidden');
+                document.getElementById('modelSaveBtn').textContent = '保存修改';
+                modelEditForm.classList.remove('hidden');
+            }
+
+            function cancelModelEdit() {
+                editingModelId = null;
+                modelEditForm.classList.add('hidden');
+            }
+
+            async function saveModelEdit() {
+                const model_id = document.getElementById('modelEditId').value.trim();
+                const name = document.getElementById('modelEditName').value.trim();
+                const path = document.getElementById('modelEditPath').value.trim();
+                const ctx_max = parseInt(document.getElementById('modelEditCtx').value, 10);
+                const max_tokens = parseInt(document.getElementById('modelEditMaxTok').value, 10);
+                const engine = document.getElementById('modelEditEngine').value;
+                const skip_check = document.getElementById('modelEditSkip').checked;
+                const errEl = document.getElementById('modelEditErr');
+
+                if (!model_id || !name || !path) { errEl.textContent = '标识、名称、路径不能为空'; errEl.classList.remove('hidden'); return; }
+                if (!ctx_max || ctx_max < 1 || ctx_max > 16384) { errEl.textContent = '总上下文必须在 1-16384 之间'; errEl.classList.remove('hidden'); return; }
+                if (!max_tokens || max_tokens < 1 || max_tokens > ctx_max) { errEl.textContent = '单次回复量必须在 1-' + ctx_max + ' 之间'; errEl.classList.remove('hidden'); return; }
+
+                const body = { model_id, name, path, ctx_max, max_tokens, engine, skip_check };
+                try {
+                    let res;
+                    if (editingModelId) {
+                        res = await fetch('/api/models/' + encodeURIComponent(editingModelId), {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                        });
+                    } else {
+                        res = await fetch('/api/models', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                        });
+                    }
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast(editingModelId ? '模型已更新' : '模型已挂载');
+                        cancelModelEdit();
+                        await loadModelList();
+                        await initModels();
+                    } else {
+                        errEl.textContent = data.message || '保存失败';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    errEl.textContent = '保存失败: ' + e.message;
+                    errEl.classList.remove('hidden');
+                }
+            }
+
+            async function deleteModel(id) {
+                const m = models.find(x => x.model_id === id);
+                if (!confirm('确定要删除模型 "' + (m?.name || id) + '" 吗？')) return;
+                try {
+                    const res = await fetch('/api/models/' + encodeURIComponent(id), { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast('已删除');
+                        await loadModelList();
+                        await initModels();
+                    } else {
+                        alert(data.message || '删除失败');
+                    }
+                } catch(e) {
+                    alert('删除失败: ' + e.message);
+                }
+            }
+
             // --- 登录/退出函数 ---
             async function doLogin() {
                 const username = document.getElementById('loginUsername').value.trim();
@@ -913,8 +1116,8 @@ html_content = r"""
                     modelSelect.innerHTML = '';
                     data.models.forEach(m => {
                         const opt = document.createElement('option');
-                        opt.value = m.id; opt.textContent = m.name;
-                        if(m.id === data.current) opt.selected = true;
+                        opt.value = m.model_id; opt.textContent = m.name;
+                        if(m.model_id === data.current) opt.selected = true;
                         modelSelect.appendChild(opt);
                     });
                     setTimeout(() => updateStatus('ready', 'NPU 引擎就绪'), 2000);

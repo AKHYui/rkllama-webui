@@ -59,6 +59,6 @@ def get_messages(session_id: str):
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute(
-            "SELECT role, content, thinking FROM messages WHERE session_id = ? ORDER BY id ASC",
+            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC",
             (session_id,))
         return [dict(row) for row in c.fetchall()]

@@ -1,5 +1,6 @@
 # 虚拟环境与缓存
 .venv/
+.conda/
 __pycache__/
 *.py[cod]
 

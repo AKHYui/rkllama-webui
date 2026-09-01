@@ -7,6 +7,14 @@ RKLLM NPU WebUI - 主入口
 import asyncio
 import os
 import secrets
+import sys
+
+# Windows 控制台默认 GBK，代码里含 emoji 的 print 会崩，统一切到 utf-8
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -15,8 +23,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from config import MODELS, SESSION_SECRET_FILE, get_model_by_id
-from database import init_db
+from config import SESSION_SECRET_FILE
+from database import init_db, get_model_by_id
 import npu
 
 # ---- FastAPI 应用创建 ----
@@ -27,8 +35,11 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ---- 静态文件 ----
-app.mount("/static", StaticFiles(directory="/opt/rkllama/static"), name="static")
+# ---- 静态文件 (开发机回退到本地 static 目录) ----
+STATIC_DIR = "/opt/rkllama/static"
+if not os.path.isdir(STATIC_DIR):
+    STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ---- Session 中间件 (登录认证) ----
 if os.path.exists(SESSION_SECRET_FILE):
@@ -36,7 +47,10 @@ if os.path.exists(SESSION_SECRET_FILE):
         SESSION_SECRET = f.read()
 else:
     SESSION_SECRET = secrets.token_bytes(32)
-    with open(SESSION_SECRET_FILE, "wb") as f:
+    secret_path = SESSION_SECRET_FILE
+    if os.name == "nt":
+        secret_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".session_secret")
+    with open(secret_path, "wb") as f:
         f.write(SESSION_SECRET)
 app.add_middleware(
     SessionMiddleware,

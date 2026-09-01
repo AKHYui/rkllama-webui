@@ -7,7 +7,7 @@ import hashlib
 import secrets
 import sqlite3
 
-from config import DB_FILE, DEFAULT_SYSTEM_PROMPT
+from config import DB_FILE, DEFAULT_SYSTEM_PROMPT, MODELS
 
 
 def init_db():
@@ -61,6 +61,30 @@ def init_db():
                 c.execute(
                     "INSERT INTO custom_prompts (name, content, sort_order) VALUES (?, ?, ?)",
                     (name, content, i))
+
+        # ===== 模型挂载表 =====
+        c.execute('''CREATE TABLE IF NOT EXISTS models
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      model_id TEXT NOT NULL UNIQUE,
+                      name TEXT NOT NULL,
+                      path TEXT NOT NULL,
+                      ctx_max INTEGER NOT NULL DEFAULT 4096,
+                      max_tokens INTEGER NOT NULL DEFAULT 1024,
+                      engine TEXT NOT NULL DEFAULT 'rkllm',
+                      sort_order INTEGER DEFAULT 0,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # 首次初始化时从 config.MODELS 导入默认模型
+        c.execute("SELECT COUNT(*) FROM models")
+        if c.fetchone()[0] == 0:
+            for i, m in enumerate(MODELS):
+                c.execute(
+                    "INSERT INTO models (model_id, name, path, ctx_max, max_tokens, engine, sort_order) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (m["id"], m["name"], m["path"],
+                     m.get("ctx_max", 4096), m.get("max_tokens", 1024),
+                     m.get("engine", "llama"), i))
 
         # 用户认证表 (id=1 单例)
         c.execute('''CREATE TABLE IF NOT EXISTS users
@@ -134,3 +158,69 @@ def verify_session_token(username, token):
         return False
     stored = get_user_session_token(username)
     return stored is not None and stored == token
+
+
+# ===== 模型挂载管理 =====
+
+def get_models():
+    """获取全部挂载模型（按 sort_order, id 排序）"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT * FROM models ORDER BY sort_order, id")
+            return [dict(r) for r in c.fetchall()]
+    except Exception:
+        return []
+
+
+def get_model_by_id(model_id):
+    """按 model_id 获取模型，未找到返回 None"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT * FROM models WHERE model_id = ?", (model_id,))
+            row = c.fetchone()
+            return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def model_id_exists(model_id):
+    return get_model_by_id(model_id) is not None
+
+
+def add_model(data):
+    """新增模型，返回 {status, model}"""
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO models (model_id, name, path, ctx_max, max_tokens, engine) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (data["model_id"], data["name"], data["path"],
+             data["ctx_max"], data["max_tokens"], data["engine"]))
+        conn.commit()
+    return {"status": "success", "model": get_model_by_id(data["model_id"])}
+
+
+def update_model(model_id, data):
+    """更新模型，返回 {status, model}"""
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE models SET name=?, path=?, ctx_max=?, max_tokens=?, engine=?, "
+            "updated_at=CURRENT_TIMESTAMP WHERE model_id=?",
+            (data["name"], data["path"], data["ctx_max"],
+             data["max_tokens"], data["engine"], model_id))
+        conn.commit()
+    return {"status": "success", "model": get_model_by_id(model_id)}
+
+
+def delete_model(model_id):
+    """删除模型，返回 {status}"""
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM models WHERE model_id = ?", (model_id,))
+        conn.commit()
+    return {"status": "success"}
