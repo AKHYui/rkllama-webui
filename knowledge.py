@@ -40,9 +40,12 @@ def _load():
     import onnxruntime as ort
     from tokenizers import Tokenizer
     _tok = Tokenizer.from_file(os.path.join(config.EMBED_MODEL_DIR, "tokenizer.json"))
+    # 只保留 error 级别日志，屏蔽 RK3588 上无 GPU 导致的 device discovery 噪音
+    _opts = ort.SessionOptions()
+    _opts.log_severity_level = 3
     _sess = ort.InferenceSession(
         os.path.join(config.EMBED_MODEL_DIR, "model.onnx"),
-        providers=["CPUExecutionProvider"])
+        _opts, providers=["CPUExecutionProvider"])
     return _sess, _tok
 
 

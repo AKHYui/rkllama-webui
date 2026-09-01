@@ -52,7 +52,12 @@ def _ingest(kb_id, filename, content):
         return {"status": "error", "message": "文档内容无法分块"}
     doc_id = uuid.uuid4().hex[:8]
     knowledge.add_document(kb_id, doc_id, chunks)
-    add_kb_document(kb_id, filename, content, len(chunks))
+    try:
+        add_kb_document(kb_id, filename, content, len(chunks))
+    except Exception:
+        # SQLite 记录失败时回滚向量，避免孤儿数据
+        knowledge.delete_document(kb_id, doc_id)
+        raise
     return {"status": "success", "chunk_count": len(chunks)}
 
 
