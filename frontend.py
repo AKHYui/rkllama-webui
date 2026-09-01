@@ -321,6 +321,35 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 会话三点下拉菜单 -->
+        <div id="sessionMenuBackdrop" class="fixed inset-0 z-40 hidden" onclick="closeSessionMenu()"></div>
+        <div id="sessionMenu" class="hidden fixed z-50 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[180px]">
+            <div id="sessionMenuTitle" class="px-3 py-2 text-xs text-gray-400 border-b border-gray-700 truncate"></div>
+            <button onclick="sessionMenuKb()" class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-gray-200 hover:bg-gray-700 text-left transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                <span>选择知识库</span>
+            </button>
+        </div>
+
+        <!-- 知识库绑定弹窗 -->
+        <div id="kbBindModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div class="min-w-0">
+                        <h3 class="text-lg font-bold text-white">绑定知识库</h3>
+                        <p id="kbBindSessionTitle" class="text-xs text-gray-400 mt-1 truncate">会话</p>
+                    </div>
+                    <button onclick="closeKbBindModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div id="kbBindList" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+                <div class="p-4 border-t border-gray-700">
+                    <button onclick="saveKbBind()" class="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors">保存</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 移动端侧边栏遮罩 -->
         <div id="mobileOverlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
 
@@ -381,16 +410,6 @@ html_content = r"""
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-300">
                             <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                        </div>
-                    </div>
-
-                    <!-- 知识库绑定选择 -->
-                    <div class="relative w-28 sm:w-32">
-                        <select id="kbSelect" onchange="handleKbBind()" title="绑定知识库，检索结果将注入对话" class="block appearance-none w-full bg-gray-700 border border-gray-600 text-white py-1.5 pl-2 pr-6 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs font-medium cursor-pointer truncate">
-                            <option value="">知识库: 无</option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-gray-300">
-                            <svg class="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                         </div>
                     </div>
 
@@ -472,7 +491,6 @@ html_content = r"""
             const userInput = document.getElementById('userInput');
             const sendBtn = document.getElementById('sendBtn');
             const modelSelect = document.getElementById('modelSelect');
-            const kbSelect = document.getElementById('kbSelect');
             const statusDot = document.getElementById('statusDot');
             const sessionList = document.getElementById('sessionList');
             const sidebar = document.getElementById('sidebar');
@@ -951,22 +969,10 @@ html_content = r"""
                     const res = await fetch('/api/kbs');
                     const data = await res.json();
                     kbs = data.kbs || [];
-                    renderKbSelect();
                     renderKbList();
                 } catch(e) {
                     console.error("加载知识库失败:", e);
                 }
-            }
-
-            function renderKbSelect() {
-                if (!kbSelect) return;
-                const cur = kbSelect.value;
-                let html = '<option value="">知识库: 无</option>';
-                for (const k of kbs) {
-                    html += '<option value="' + k.id + '">' + escapeHtml(k.name) + '</option>';
-                }
-                kbSelect.innerHTML = html;
-                kbSelect.value = cur;
             }
 
             function renderKbList() {
@@ -1164,16 +1170,98 @@ html_content = r"""
                 }
             }
 
-            async function handleKbBind() {
-                if (!currentSessionId) { kbSelect.value = ''; return; }
-                const kb_id = kbSelect.value ? parseInt(kbSelect.value, 10) : null;
+            // ===== 会话三点菜单 + 知识库绑定 =====
+            let sessionMenuFor = null;
+            let kbBindSessionId = null;
+            let kbBindSelected = null;
+            const sessionMenuEl = document.getElementById('sessionMenu');
+            const sessionMenuBackdrop = document.getElementById('sessionMenuBackdrop');
+            const kbBindModalEl = document.getElementById('kbBindModal');
+
+            if (kbBindModalEl) {
+                kbBindModalEl.addEventListener('click', function(e) {
+                    if (e.target === kbBindModalEl) closeKbBindModal();
+                });
+            }
+
+            function openSessionMenu(id, e) {
+                e.stopPropagation();
+                sessionMenuFor = id;
+                const sess = sessions.find(s => s.id === id);
+                document.getElementById('sessionMenuTitle').textContent = sess ? sess.title : '';
+                let x = e.clientX, y = e.clientY;
+                if (x + 190 > window.innerWidth) x = window.innerWidth - 200;
+                if (y + 110 > window.innerHeight) y = window.innerHeight - 120;
+                sessionMenuEl.style.left = x + 'px';
+                sessionMenuEl.style.top = y + 'px';
+                sessionMenuEl.classList.remove('hidden');
+                sessionMenuBackdrop.classList.remove('hidden');
+            }
+
+            function closeSessionMenu() {
+                sessionMenuFor = null;
+                if (sessionMenuEl) sessionMenuEl.classList.add('hidden');
+                if (sessionMenuBackdrop) sessionMenuBackdrop.classList.add('hidden');
+            }
+
+            function sessionMenuKb() {
+                const id = sessionMenuFor;
+                closeSessionMenu();
+                if (id) openKbBindModal(id);
+            }
+
+            function openKbBindModal(sessionId) {
+                kbBindSessionId = sessionId;
+                const sess = sessions.find(s => s.id === sessionId);
+                document.getElementById('kbBindSessionTitle').textContent = sess ? sess.title : '';
+                kbBindSelected = sess && sess.kb_id ? sess.kb_id : null;
+                renderKbBindList();
+                kbBindModalEl.classList.remove('modal-hidden');
+            }
+
+            function closeKbBindModal() {
+                kbBindModalEl.classList.add('modal-hidden');
+            }
+
+            function renderKbBindList() {
+                const c = document.getElementById('kbBindList');
+                if (!c) return;
+                let html = '<label class="flex items-center gap-2 px-3 py-2.5 bg-gray-700/50 rounded-xl border border-gray-600 cursor-pointer hover:border-purple-500/50 transition-colors">';
+                html += '<input type="radio" name="kbbind" value="" ' + (kbBindSelected === null ? 'checked' : '') + ' onchange="selectKbBind(null)" class="accent-purple-500">';
+                html += '<span class="text-sm text-gray-200">不绑定知识库</span></label>';
+                if (kbs.length === 0) {
+                    html += '<div class="text-gray-500 text-sm text-center py-4">暂无知识库，请先到 设置→知识库 创建</div>';
+                }
+                for (const k of kbs) {
+                    html += '<label class="flex items-center gap-2 px-3 py-2.5 bg-gray-700/50 rounded-xl border border-gray-600 cursor-pointer hover:border-purple-500/50 transition-colors">';
+                    html += '<input type="radio" name="kbbind" value="' + k.id + '" ' + (kbBindSelected === k.id ? 'checked' : '') + ' onchange="selectKbBind(' + k.id + ')" class="accent-purple-500">';
+                    html += '<span class="text-sm text-gray-200 truncate flex-1">' + escapeHtml(k.name) + '</span>';
+                    if (k.doc_count === 0) html += '<span class="text-[10px] text-gray-500 shrink-0">空</span>';
+                    html += '</label>';
+                }
+                c.innerHTML = html;
+            }
+
+            function selectKbBind(id) {
+                kbBindSelected = id;
+            }
+
+            async function saveKbBind() {
+                if (!kbBindSessionId) return;
                 try {
-                    const res = await fetch('/api/sessions/' + currentSessionId + '/kb', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kb_id })
+                    const res = await fetch('/api/sessions/' + kbBindSessionId + '/kb', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kb_id: kbBindSelected })
                     });
                     const data = await res.json();
-                    if (data.status === 'success') showToast(kb_id ? '已绑定知识库' : '已取消绑定');
-                    else alert(data.message || '绑定失败');
+                    if (data.status === 'success') {
+                        showToast(kbBindSelected ? '已绑定知识库' : '已取消绑定');
+                        const sess = sessions.find(s => s.id === kbBindSessionId);
+                        if (sess) sess.kb_id = kbBindSelected;
+                        closeKbBindModal();
+                        renderSidebar();
+                    } else {
+                        alert(data.message || '绑定失败');
+                    }
                 } catch(e) {
                     alert('绑定失败: ' + e.message);
                 }
@@ -1433,7 +1521,6 @@ html_content = r"""
                     const newSession = await res.json();
                     sessions.unshift(newSession);
                     currentSessionId = newSession.id;
-                    if (kbSelect) kbSelect.value = '';
                     renderSidebar();
                     renderChat([]);
                     if(window.innerWidth < 768) toggleSidebar();
@@ -1466,8 +1553,6 @@ html_content = r"""
                 if (isGenerating || !id) return;
                 currentSessionId = id;
                 renderSidebar();
-                const sess = sessions.find(s => s.id === id);
-                if (kbSelect) kbSelect.value = sess && sess.kb_id ? sess.kb_id : '';
                 try {
                     const res = await fetch(`/api/sessions/${id}/messages`);
                     const messages = await res.json();
@@ -1491,10 +1576,16 @@ html_content = r"""
                         <div class="flex items-center space-x-2 truncate flex-1 pr-2">
                             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                             <span class="truncate text-sm font-medium">${escapeHtml(session.title)}</span>
+                            ${session.kb_id ? '<svg class="w-3.5 h-3.5 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="已绑定知识库"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>' : ''}
                         </div>
-                        <button onclick="deleteSession('${session.id}', event)" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
+                        <div class="flex items-center gap-0.5 shrink-0">
+                            <button onclick="openSessionMenu('${session.id}', event)" class="text-gray-500 hover:text-gray-200 opacity-60 group-hover:opacity-100 transition-opacity p-1" title="更多选项">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+                            </button>
+                            <button onclick="deleteSession('${session.id}', event)" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
                     `;
                     sessionList.appendChild(div);
                 });
