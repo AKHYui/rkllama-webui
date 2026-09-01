@@ -115,6 +115,13 @@ async def restart_npu():
     return {"status": "success", "message": "NPU restarted"}
 
 
+@router.post("/reset", dependencies=[Depends(require_auth)])
+async def reset_npu_alias():
+    """旧前端兼容别名：/api/reset 等价于 /api/npu/restart"""
+    await npu.start_llm()
+    return {"status": "success", "message": "NPU 进程已重置，内存已清空"}
+
+
 @router.get("/sampling", dependencies=[Depends(require_auth)])
 async def get_sampling():
     """获取当前采样参数"""

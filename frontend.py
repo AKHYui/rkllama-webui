@@ -1479,4 +1479,4 @@ html_content = r"""
 
 @router.get("/")
 async def get_ui():
-    return HTMLResponse(content=html_content)
+    return HTMLResponse(content=html_content, headers={"Cache-Control": "no-store"})
