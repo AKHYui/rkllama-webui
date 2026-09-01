@@ -37,7 +37,6 @@ rkllama-webui/
 ├── npu.py                  # llm_demo 子进程管理（常驻、会话切换重启）
 ├── knowledge.py            # 向量模块：bge-small-zh 推理、分块、ChromaDB 检索
 ├── engine_llama.py         # llama.cpp 引擎（预留，需自行补齐 LLAMA_CLI 等配置）
-├── npu_api.py              # 旧版单文件实现（已废弃，保留参考）
 ├── frontend.py             # 前端单页应用（HTML/JS/CSS）
 ├── routes/
 │   ├── auth.py             # 登录/登出/改密

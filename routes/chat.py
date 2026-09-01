@@ -5,6 +5,7 @@ RKLLM NPU WebUI - 聊天路由 (核心)
 
 import asyncio
 import json
+import re
 import sqlite3
 import time
 
@@ -183,10 +184,14 @@ async def _generate_rkllm(
 # ============================================================
 
 def _build_rkllm_prompt(clean_query, system_prompt, history, kb_context="") -> str:
-    """构建 rkllm 引擎的 prompt 字符串"""
+    """构建 rkllm 引擎的 prompt 字符串
+
+    llm_demo 按行读取 stdin，任何换行都会导致 prompt 截断（模型会"复读"系统提示词）。
+    因此系统提示词、知识库片段可能含换行，最终拼好的 prompt 必须折叠为单行。
+    """
     prefix = ""
     if kb_context:
-        prefix = "【知识库参考】\n" + kb_context + "\n\n"
+        prefix = "【知识库参考】" + kb_context + " "
     if history:
         context_str = prefix + (
             "【系统设定】" + system_prompt +
@@ -203,11 +208,11 @@ def _build_rkllm_prompt(clean_query, system_prompt, history, kb_context="") -> s
             f"User: {clean_query} AI:"
         )
         print(f"\n[prompt] context built, total: {len(context_str)} chars")
-        return context_str
+        return re.sub(r"\s*\r?\n\s*", " ", context_str)
     else:
         context_str = prefix + "【系统设定】" + system_prompt + f" User: {clean_query} AI:"
         print(f"\n[prompt] no history, total: {len(context_str)} chars")
-        return context_str
+        return re.sub(r"\s*\r?\n\s*", " ", context_str)
 
 # ============================================================
 #  DB 辅助函数
