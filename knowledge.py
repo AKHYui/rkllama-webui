@@ -13,7 +13,6 @@ EMBED_AVAILABLE = False
 
 _sess = None
 _tok = None
-_client = None
 
 
 def _check_available():
@@ -50,11 +49,10 @@ def _load():
 
 
 def _get_client():
-    global _client
-    if _client is None:
-        import chromadb
-        _client = chromadb.PersistentClient(path=config.CHROMA_DIR)
-    return _client
+    """每次操作新建 PersistentClient，避免进程内缓存过期导致
+    'Could not connect to tenant' 等目录状态错乱问题"""
+    import chromadb
+    return chromadb.PersistentClient(path=config.CHROMA_DIR)
 
 
 def _get_collection(kb_id):
