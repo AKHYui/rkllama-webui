@@ -74,6 +74,7 @@ SESSION_SECRET_FILE="/opt/rkllama/.session_secret"
 KB_CHUNK_SIZE = 400
 KB_CHUNK_OVERLAP = 100
 KB_TOP_K = 3
+KB_FULL_INJECT_MAX_CHARS = 12000  # 全量注入模式下，单次注入的最大字符数（防超16K上下文）
 KB_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 if os.name == "nt":

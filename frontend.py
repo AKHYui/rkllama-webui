@@ -260,6 +260,10 @@ html_content = r"""
                     <div id="kbForm" class="hidden p-4 border-t border-gray-700 bg-gray-750 space-y-3">
                         <input id="kbName" type="text" placeholder="知识库名称" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" maxlength="50">
                         <input id="kbDesc" type="text" placeholder="描述 (可选)" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" maxlength="200">
+                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                            <input id="kbFullInject" type="checkbox" class="accent-purple-500">
+                            <span>全量注入模式（适合角色人格/完整设定类语料：绑定后每轮整份注入对话，不走检索）</span>
+                        </label>
                         <p id="kbFormErr" class="text-red-400 text-sm hidden"></p>
                         <div class="flex gap-2">
                             <button id="kbSaveBtn" onclick="saveKb()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">保存</button>
@@ -987,6 +991,7 @@ html_content = r"""
                     html += '<div class="bg-gray-700/50 rounded-xl p-3 border border-gray-600 hover:border-purple-500/50 transition-colors">';
                     html += '<div class="flex justify-between items-start mb-1">';
                     html += '<div class="min-w-0"><span class="text-gray-100 font-medium text-sm">' + escapeHtml(k.name) + '</span>';
+                    if (k.full_inject) html += '<span class="text-[10px] px-1.5 py-0.5 ml-1 bg-purple-600/30 text-purple-300 rounded border border-purple-500/30 align-middle">全量注入</span>';
                     if (k.description) html += '<div class="text-gray-400 text-xs mt-0.5 truncate">' + escapeHtml(k.description) + '</div>';
                     html += '</div>';
                     html += '<div class="flex gap-1 shrink-0">';
@@ -1005,6 +1010,7 @@ html_content = r"""
                 const k = id ? kbs.find(x => x.id === id) : null;
                 document.getElementById('kbName').value = k ? k.name : '';
                 document.getElementById('kbDesc').value = k ? (k.description || '') : '';
+                document.getElementById('kbFullInject').checked = k ? !!k.full_inject : false;
                 document.getElementById('kbFormErr').classList.add('hidden');
                 document.getElementById('kbForm').classList.remove('hidden');
             }
@@ -1017,17 +1023,18 @@ html_content = r"""
             async function saveKb() {
                 const name = document.getElementById('kbName').value.trim();
                 const description = document.getElementById('kbDesc').value.trim();
+                const full_inject = document.getElementById('kbFullInject').checked;
                 const errEl = document.getElementById('kbFormErr');
                 if (!name) { errEl.textContent = '名称不能为空'; errEl.classList.remove('hidden'); return; }
                 try {
                     let res;
                     if (editingKbId) {
                         res = await fetch('/api/kbs/' + editingKbId, {
-                            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description })
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description, full_inject })
                         });
                     } else {
                         res = await fetch('/api/kbs', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description })
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description, full_inject })
                         });
                     }
                     const data = await res.json();
@@ -1236,6 +1243,7 @@ html_content = r"""
                     html += '<label class="flex items-center gap-2 px-3 py-2.5 bg-gray-700/50 rounded-xl border border-gray-600 cursor-pointer hover:border-purple-500/50 transition-colors">';
                     html += '<input type="radio" name="kbbind" value="' + k.id + '" ' + (kbBindSelected === k.id ? 'checked' : '') + ' onchange="selectKbBind(' + k.id + ')" class="accent-purple-500">';
                     html += '<span class="text-sm text-gray-200 truncate flex-1">' + escapeHtml(k.name) + '</span>';
+                    if (k.full_inject) html += '<span class="text-[10px] px-1.5 py-0.5 bg-purple-600/30 text-purple-300 rounded border border-purple-500/30 shrink-0">全量注入</span>';
                     if (k.doc_count === 0) html += '<span class="text-[10px] text-gray-500 shrink-0">空</span>';
                     html += '</label>';
                 }

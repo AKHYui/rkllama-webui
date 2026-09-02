@@ -113,8 +113,14 @@ def init_db():
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       name TEXT NOT NULL UNIQUE,
                       description TEXT DEFAULT '',
+                      full_inject INTEGER DEFAULT 0,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # 旧库迁移：knowledge_bases 增加全量注入标记
+        c.execute("PRAGMA table_info(knowledge_bases)")
+        if "full_inject" not in [row[1] for row in c.fetchall()]:
+            c.execute("ALTER TABLE knowledge_bases ADD COLUMN full_inject INTEGER DEFAULT 0")
 
         c.execute('''CREATE TABLE IF NOT EXISTS kb_documents
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -305,21 +311,23 @@ def kb_name_exists(name):
         return False
 
 
-def add_kb(name, description=""):
+def add_kb(name, description="", full_inject=False):
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
-        c.execute("INSERT INTO knowledge_bases (name, description) VALUES (?, ?)",
-                  (name, description))
+        c.execute(
+            "INSERT INTO knowledge_bases (name, description, full_inject) VALUES (?, ?, ?)",
+            (name, description, 1 if full_inject else 0))
         conn.commit()
         return c.lastrowid
 
 
-def update_kb(kb_id, name, description):
+def update_kb(kb_id, name, description, full_inject=False):
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute(
-            "UPDATE knowledge_bases SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (name, description, kb_id))
+            "UPDATE knowledge_bases SET name=?, description=?, full_inject=?, "
+            "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (name, description, 1 if full_inject else 0, kb_id))
         conn.commit()
 
 
@@ -342,6 +350,20 @@ def get_kb_documents(kb_id):
             c.execute(
                 "SELECT id, kb_id, filename, chunk_count, created_at "
                 "FROM kb_documents WHERE kb_id = ? ORDER BY id DESC", (kb_id,))
+            return [dict(r) for r in c.fetchall()]
+    except Exception:
+        return []
+
+
+def get_kb_documents_content(kb_id):
+    """获取知识库全部文档的内容（全量注入用）"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute(
+                "SELECT id, filename, content FROM kb_documents "
+                "WHERE kb_id = ? ORDER BY id ASC", (kb_id,))
             return [dict(r) for r in c.fetchall()]
     except Exception:
         return []

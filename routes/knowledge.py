@@ -27,6 +27,7 @@ ALLOWED_EXTS = (".txt", ".md")
 class KBCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field("", max_length=200)
+    full_inject: bool = False
 
 
 class DocumentText(BaseModel):
@@ -44,9 +45,18 @@ class TestRequest(BaseModel):
 
 
 def _ingest(kb_id, filename, content):
-    """解析文本 -> 分块 -> 向量入库 -> 记录文档"""
+    """解析文本 -> 分块 -> (向量入库) -> 记录文档
+
+    全量注入模式的知识库只把原文存入 SQLite（不需要向量库），
+    绑定时整份注入对话，不走检索。
+    """
     if not content.strip():
         return {"status": "error", "message": "文档内容为空"}
+    kb = get_kb_by_id(kb_id)
+    full_inject = bool(kb and kb.get("full_inject"))
+    if full_inject:
+        add_kb_document(kb_id, filename, content, 0)
+        return {"status": "success", "chunk_count": 0, "full_inject": True}
     chunks = knowledge.chunk_text(content)
     if not chunks:
         return {"status": "error", "message": "文档内容无法分块"}
@@ -70,7 +80,7 @@ async def list_kbs():
 async def create_kb(req: KBCreate):
     if kb_name_exists(req.name):
         return {"status": "error", "message": f"知识库名 {req.name} 已存在"}
-    kb_id = add_kb(req.name, req.description)
+    kb_id = add_kb(req.name, req.description, req.full_inject)
     return {"status": "success", "id": kb_id}
 
 
@@ -82,7 +92,7 @@ async def update_kb_endpoint(kb_id: int, req: KBCreate):
     other = get_kbs()
     if any(k["id"] != kb_id and k["name"] == req.name for k in other):
         return {"status": "error", "message": f"知识库名 {req.name} 已存在"}
-    update_kb(kb_id, req.name, req.description)
+    update_kb(kb_id, req.name, req.description, req.full_inject)
     return {"status": "success"}
 
 

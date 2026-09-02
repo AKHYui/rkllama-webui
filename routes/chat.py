@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 import config
 import knowledge
 from config import DB_FILE, PROMPT_SIGN
-from database import get_system_prompt, get_session_kb
+from database import (
+    get_system_prompt, get_session_kb, get_kb_by_id, get_kb_documents_content,
+)
 import npu
 from routes.auth import require_auth
 
@@ -40,17 +42,24 @@ async def chat_endpoint(request: ChatRequest):
     else:
         clean_query = _handle_new_message(request.session_id, request.query)
 
-    # ---- 知识库检索（会话绑定了知识库时）----
+    # ---- 知识库（会话绑定了知识库时：全量注入 或 检索注入）----
     kb_context = ""
     try:
         kb_id = get_session_kb(request.session_id)
         if kb_id:
-            hits = await asyncio.to_thread(
-                knowledge.retrieve, kb_id, clean_query, config.KB_TOP_K)
-            if hits:
-                kb_context = "\n".join(
-                    f"[{i + 1}] {h['content']}" for i, h in enumerate(hits))
-                print(f"[kb] session={request.session_id} hits={len(hits)}")
+            kb = get_kb_by_id(kb_id)
+            if kb and kb.get("full_inject"):
+                # 全量注入：整份语料直接进 prompt，不走检索
+                kb_context = _build_full_inject_context(kb_id)
+                if kb_context:
+                    print(f"[kb] session={request.session_id} full-inject {len(kb_context)} chars")
+            else:
+                hits = await asyncio.to_thread(
+                    knowledge.retrieve, kb_id, clean_query, config.KB_TOP_K)
+                if hits:
+                    kb_context = "\n".join(
+                        f"[{i + 1}] {h['content']}" for i, h in enumerate(hits))
+                    print(f"[kb] session={request.session_id} hits={len(hits)}")
     except Exception as e:
         print(f"[kb] retrieve error: {e}")
 
@@ -182,6 +191,27 @@ async def _generate_rkllm(
 # ============================================================
 #  Prompt 构建
 # ============================================================
+
+def _build_full_inject_context(kb_id) -> str:
+    """全量注入模式：拼接知识库全部文档原文（按序，超长截断）"""
+    docs = get_kb_documents_content(kb_id)
+    parts = []
+    total = 0
+    for d in docs:
+        content = (d.get("content") or "").strip()
+        if not content:
+            continue
+        header = f"【文档: {d.get('filename', '')}】"
+        chunk = header + "\n" + content
+        remaining = config.KB_FULL_INJECT_MAX_CHARS - total
+        if remaining <= 0:
+            break
+        parts.append(chunk[:remaining])
+        total += len(parts[-1])
+        if total >= config.KB_FULL_INJECT_MAX_CHARS:
+            break
+    return "\n\n".join(parts)
+
 
 def _build_rkllm_prompt(clean_query, system_prompt, history, kb_context="") -> str:
     """构建 rkllm 引擎的 prompt 字符串
