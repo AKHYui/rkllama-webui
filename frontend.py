@@ -325,6 +325,47 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 外部调用弹窗 -->
+        <div id="externalCallModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">外部调用</h3>
+                        <p class="text-xs text-gray-400 mt-1">OpenAI 兼容接口，用 API-Key + 模型 id 从外部工具调用大模型</p>
+                    </div>
+                    <button onclick="closeExternalCallModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4 overflow-y-auto">
+                    <div>
+                        <label class="text-xs text-gray-400 block mb-1">创建 API-Key</label>
+                        <div class="flex gap-2">
+                            <input id="apiKeyName" type="text" placeholder="名称（如 Chatbox / 我的脚本）" class="flex-1 bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button onclick="createApiKey()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">创建</button>
+                        </div>
+                        <div id="apiKeyNew" class="mt-2 hidden">
+                            <p class="text-xs text-green-400 break-all font-mono" id="apiKeyNewText"></p>
+                            <button onclick="copyApiKey()" class="mt-1 text-xs text-blue-400 hover:text-blue-300">复制 Key</button>
+                        </div>
+                        <p id="apiKeyErr" class="mt-2 text-xs text-red-400 hidden"></p>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400 block mb-1">已有 Key</label>
+                        <div id="apiKeyList" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400 block mb-1">调用示例</label>
+                        <div class="bg-gray-900 rounded-lg p-3 space-y-1 overflow-x-auto">
+                            <p class="text-xs text-gray-300">接口地址：<span class="text-blue-400 font-mono" id="apiBaseUrl"></span></p>
+                            <p class="text-xs text-gray-300">可用模型：<span class="text-green-400 font-mono" id="apiModelIds"></span></p>
+                            <pre class="text-xs text-gray-400 font-mono whitespace-pre-wrap" id="apiExample"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 会话三点下拉菜单 -->
         <div id="sessionMenuBackdrop" class="fixed inset-0 z-40 hidden" onclick="closeSessionMenu()"></div>
         <div id="sessionMenu" class="hidden fixed z-50 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[180px]">
@@ -375,6 +416,7 @@ html_content = r"""
                 <button onclick="closeRightDrawer(); openModelManagerModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-green-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="text-gray-200 font-medium">模型挂载</span></button>
                 <button onclick="closeRightDrawer(); openKnowledgeModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-purple-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg><span class="text-gray-200 font-medium">知识库</span></button>
                 <button onclick="closeRightDrawer(); openDriverModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-orange-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"></rect><rect x="3" y="14" width="18" height="6" rx="2"></rect><line x1="7" y1="7" x2="7" y2="7.01"></line><line x1="7" y1="17" x2="7" y2="17.01"></line></svg><span class="text-gray-200 font-medium">驱动挂载</span></button>
+                <button onclick="closeRightDrawer(); openExternalCallModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-blue-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg><span class="text-gray-200 font-medium">外部调用</span></button>
                 <button onclick="closeRightDrawer(); doLogout()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-red-500/50 text-left">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span class="text-gray-200 font-medium">退出登录</span>
@@ -1330,6 +1372,109 @@ html_content = r"""
                     errEl.textContent = '保存失败: ' + e.message;
                     errEl.classList.remove('hidden');
                 }
+            }
+
+            // --- 外部调用（API-Key / OpenAI 兼容接口）函数 ---
+            const externalCallModal = document.getElementById('externalCallModal');
+            let currentApiKey = '';
+
+            function openExternalCallModal() {
+                document.getElementById('apiKeyName').value = '';
+                document.getElementById('apiKeyNew').classList.add('hidden');
+                document.getElementById('apiKeyErr').classList.add('hidden');
+                loadApiKeys();
+                loadApiModels();
+                const base = window.location.origin;
+                document.getElementById('apiBaseUrl').textContent = base + '/v1';
+                document.getElementById('apiExample').textContent =
+                    'curl ' + base + '/v1/chat/completions -H "Authorization: Bearer <你的API-KEY>" -H "Content-Type: application/json" -d \'{"model":"<模型id>","messages":[{"role":"user","content":"你好"}]}\'';
+                externalCallModal.classList.remove('modal-hidden');
+            }
+
+            function closeExternalCallModal() {
+                externalCallModal.classList.add('modal-hidden');
+            }
+
+            async function loadApiModels() {
+                try {
+                    const res = await fetch('/api/models');
+                    const data = await res.json();
+                    const ids = (data.models || []).map(m => m.model_id);
+                    document.getElementById('apiModelIds').textContent = ids.join(', ') || '（暂无模型）';
+                } catch(e) {
+                    document.getElementById('apiModelIds').textContent = '（加载失败）';
+                }
+            }
+
+            async function loadApiKeys() {
+                const list = document.getElementById('apiKeyList');
+                try {
+                    const res = await fetch('/api/apikeys');
+                    const data = await res.json();
+                    if (!data.keys || data.keys.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-sm">暂无 Key，请先创建</p>';
+                        return;
+                    }
+                    list.innerHTML = data.keys.map(k =>
+                        '<div class="flex items-center justify-between bg-gray-700 rounded-lg px-3 py-2">' +
+                        '<div class="flex items-center gap-2 min-w-0">' +
+                        '<span class="text-sm text-gray-200 truncate">' + escapeHtml(k.name) + '</span>' +
+                        '<span class="text-xs text-gray-400 font-mono">' + escapeHtml(k.key_prefix) + '</span>' +
+                        '</div>' +
+                        '<button onclick="deleteApiKey(' + k.id + ')" class="text-red-400 hover:text-red-300 text-xs shrink-0 ml-2">删除</button>' +
+                        '</div>'
+                    ).join('');
+                } catch(e) {
+                    list.innerHTML = '<p class="text-red-400 text-sm">加载失败</p>';
+                }
+            }
+
+            async function createApiKey() {
+                const name = document.getElementById('apiKeyName').value.trim();
+                const newBox = document.getElementById('apiKeyNew');
+                const errEl = document.getElementById('apiKeyErr');
+                newBox.classList.add('hidden');
+                errEl.classList.add('hidden');
+                try {
+                    const res = await fetch('/api/apikeys', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        currentApiKey = data.key;
+                        document.getElementById('apiKeyNewText').textContent = data.key;
+                        newBox.classList.remove('hidden');
+                        document.getElementById('apiKeyName').value = '';
+                        loadApiKeys();
+                    } else {
+                        errEl.textContent = data.message || '创建失败';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    errEl.textContent = '创建失败: ' + e.message;
+                    errEl.classList.remove('hidden');
+                }
+            }
+
+            async function copyApiKey() {
+                if (!currentApiKey) return;
+                try {
+                    await navigator.clipboard.writeText(currentApiKey);
+                } catch(e) {
+                    const ta = document.createElement('textarea');
+                    ta.value = currentApiKey;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                }
+            }
+
+            async function deleteApiKey(id) {
+                if (!confirm('确定删除该 API-Key？删除后使用该 Key 的调用将立即失效。')) return;
+                await fetch('/api/apikeys/' + id, { method: 'DELETE' });
+                loadApiKeys();
             }
 
             // --- 登录/退出函数 ---

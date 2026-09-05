@@ -136,6 +136,14 @@ def init_db():
                       value TEXT,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # ===== API-Key 表（外部调用 OpenAI 兼容接口）=====
+        c.execute('''CREATE TABLE IF NOT EXISTS api_keys
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT NOT NULL,
+                      key_hash TEXT NOT NULL UNIQUE,
+                      key_prefix TEXT NOT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
         c.execute("SELECT COUNT(*) FROM users")
         if c.fetchone()[0] == 0:
             salt = secrets.token_hex(16)
@@ -440,3 +448,60 @@ def set_setting(key, value):
             "INSERT OR REPLACE INTO settings (key, value, updated_at) "
             "VALUES (?, ?, CURRENT_TIMESTAMP)", (key, value))
         conn.commit()
+
+
+# ===== API-Key 管理（外部调用 OpenAI 兼容接口）=====
+
+def _hash_key(key: str) -> str:
+    """对 API-Key 做 sha256，仅存哈希不存明文"""
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def create_api_key(name: str) -> dict:
+    """创建 API-Key，返回 {id, key(明文,仅此一次), prefix, name, created_at}"""
+    name = (name or "").strip() or "未命名"
+    key = "sk-" + secrets.token_urlsafe(32)
+    key_hash = _hash_key(key)
+    key_prefix = key[:12] + "..."
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO api_keys (name, key_hash, key_prefix) VALUES (?, ?, ?)",
+            (name, key_hash, key_prefix))
+        conn.commit()
+        return {"id": c.lastrowid, "key": key, "prefix": key_prefix, "name": name}
+
+
+def get_api_keys() -> list:
+    """获取 API-Key 列表（不含明文，仅 id/name/prefix/created_at）"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT id, name, key_prefix, created_at FROM api_keys ORDER BY id")
+            return [dict(r) for r in c.fetchall()]
+    except Exception:
+        return []
+
+
+def delete_api_key(key_id: int) -> bool:
+    """删除 API-Key，返回是否删除成功"""
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
+        conn.commit()
+        return c.rowcount > 0
+
+
+def verify_api_key(key: str) -> bool:
+    """校验 API-Key 是否存在且有效"""
+    if not key:
+        return False
+    key_hash = _hash_key(key.strip())
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM api_keys WHERE key_hash = ?", (key_hash,))
+            return c.fetchone()[0] > 0
+    except Exception:
+        return False

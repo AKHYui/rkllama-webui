@@ -4,6 +4,9 @@
 __pycache__/
 *.py[cod]
 
+# WorkBuddy 工作目录（本地日志/记忆，不入库）
+.workbuddy/
+
 # 备份文件与备份目录
 *.bak
 *.old

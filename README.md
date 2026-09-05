@@ -16,6 +16,7 @@
 - 🎛️ **采样参数**：temperature / top_p / top_k / repeat_penalty 实时调整
 - 🧠 **系统提示词**：全局系统提示词 + 自定义提示词库（预设/新建/编辑/删除/激活）
 - ⚡ **引擎管理**：NPU 进程常驻、会话切换自动重启、一键强制重启引擎
+- 🌐 **外部调用（OpenAI 兼容）**：提供 `/v1/chat/completions`、`/v1/models` 接口，在「更多 → 外部调用」创建 API-Key 后，可用 OpenAI SDK、Chatbox、LobeChat 等外部工具直接调用板子上的大模型
 
 ## 技术栈
 
@@ -244,6 +245,36 @@ llm_demo model_path max_new_tokens max_context_len \
 | POST | `/api/npu/restart` | 重启引擎（兼容旧别名 `/api/reset`） |
 
 除登录接口外均需登录态（Session Cookie）。
+
+## OpenAI 兼容接口（外部调用）
+
+在 WebUI 右上角「更多 → 外部调用」中创建 API-Key，即可用 OpenAI 风格的接口从外部工具调用大模型。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/v1/chat/completions` | 对话补全（支持 `stream: true` 流式 / 非流式） |
+| GET | `/v1/models` | 列出可用模型 |
+
+鉴权：`Authorization: Bearer <API-KEY>`（与 WebUI 登录态相互独立）。
+
+```bash
+# curl 示例
+curl http://<开发板IP>:8000/v1/chat/completions \
+  -H "Authorization: Bearer <你的API-KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"你好"}]}'
+
+# OpenAI Python SDK 示例
+from openai import OpenAI
+client = OpenAI(base_url="http://<开发板IP>:8000/v1", api_key="<你的API-KEY>")
+resp = client.chat.completions.create(
+    model="qwen3-4b",
+    messages=[{"role": "user", "content": "你好"}],
+)
+print(resp.choices[0].message.content)
+```
+
+> ⚠️ **性能说明**：RKLLM 的 `llm_demo` 为有状态常驻进程，而 OpenAI 接口是无状态协议（每次请求带完整 `messages`）。因此每个 `/v1/chat/completions` 请求都会重启 NPU 引擎（清空 KV cache），首包含模型加载延迟（约 10–30 秒，视模型大小）。接口并发量固定为 1：上一个任务未结束时，后续请求会排队等待。
 
 ## 本地开发（Windows）
 

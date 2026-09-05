@@ -64,9 +64,18 @@ async def kill_llm():
 #  rkllm 引擎
 # ============================================================
 
-async def start_llm():
-    global llm_process
+async def start_llm(model_id=None, overrides=None):
+    """拉起 rkllm 引擎。
+
+    model_id: 指定要加载的模型；为 None 时使用当前模型。
+    overrides: 采样/生成参数覆盖 dict（如 {"temperature":0.8, "max_tokens":512}），
+               用于 OpenAI 兼容接口按请求动态调整；为 None 时用模型/全局配置。
+    """
+    global llm_process, current_model_id
     await kill_llm()
+    if model_id:
+        current_model_id = model_id
+    overrides = overrides or {}
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = "/usr/local/lib/rkllm:" + env.get("LD_LIBRARY_PATH", "")
     cfg = get_current_model_config()
@@ -74,14 +83,14 @@ async def start_llm():
     if not model_path:
         print("[*] 没有可用的模型配置，跳过引擎启动")
         return False
-    max_tokens = cfg.get("max_tokens", 1024)
-    ctx_max = cfg.get("ctx_max", 4096)
-    temperature = _resolve_sampling(cfg, "temperature", 0.85)
-    top_p = _resolve_sampling(cfg, "top_p", 0.9)
-    top_k = _resolve_sampling(cfg, "top_k", 1)
-    repeat_penalty = _resolve_sampling(cfg, "repeat_penalty", 1.25)
-    frequency_penalty = _resolve_sampling(cfg, "frequency_penalty", 0.0)
-    presence_penalty = _resolve_sampling(cfg, "presence_penalty", 0.0)
+    max_tokens = overrides.get("max_tokens", cfg.get("max_tokens", 1024))
+    ctx_max = overrides.get("ctx_max", cfg.get("ctx_max", 4096))
+    temperature = overrides.get("temperature", _resolve_sampling(cfg, "temperature", 0.85))
+    top_p = overrides.get("top_p", _resolve_sampling(cfg, "top_p", 0.9))
+    top_k = overrides.get("top_k", _resolve_sampling(cfg, "top_k", 1))
+    repeat_penalty = overrides.get("repeat_penalty", _resolve_sampling(cfg, "repeat_penalty", 1.25))
+    frequency_penalty = overrides.get("frequency_penalty", _resolve_sampling(cfg, "frequency_penalty", 0.0))
+    presence_penalty = overrides.get("presence_penalty", _resolve_sampling(cfg, "presence_penalty", 0.0))
     print(f"\n[*] 拉起 rkllm 引擎: {current_model_id} (ctx={ctx_max}, max_tokens={max_tokens}, "
           f"temp={temperature}, top_p={top_p}, top_k={top_k}, rp={repeat_penalty})")
     llm_demo_path = get_llm_demo_path()
