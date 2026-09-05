@@ -16,6 +16,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+import security
 from config import DB_FILE
 from database import (
     get_user_session_token, set_user_session_token,
@@ -26,10 +27,11 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
     captcha_id: str = Field("", max_length=64)
     captcha: str = Field("", max_length=10)
+    encrypted: str = Field("", max_length=1024, description="base64 加密载荷（加密登录时使用）")
 
 
 class ChangePasswordRequest(BaseModel):
@@ -153,14 +155,32 @@ async def auth_login(req: LoginRequest, request: Request):
     if len(_login_attempts[client_ip]) > max_attempts:
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
 
+    username = req.username
+    password = req.password
+    captcha_id = req.captcha_id
+    captcha = req.captcha
+
+    # 加密登录：用私钥解密整个载荷（username/password/captcha_id/captcha）
+    if req.encrypted:
+        try:
+            payload = security.decrypt_payload(req.encrypted)
+            username = payload.get("username", "")
+            password = payload.get("password", "")
+            captcha_id = payload.get("captcha_id", "")
+            captcha = payload.get("captcha", "")
+        except Exception:
+            # 密钥已轮转/失效，前端会重新拉取公钥并重试
+            return JSONResponse(status_code=409,
+                                content={"status": "key_rotated",
+                                         "message": "登录密钥已变更，请重试"})
+
     # 验证码校验（先于密码校验，防止绕过）
-    captcha_err = _verify_captcha(req.captcha_id, req.captcha)
+    captcha_err = _verify_captcha(captcha_id, captcha)
     if captcha_err:
         return JSONResponse(status_code=401,
                             content={"status": "error", "message": captcha_err})
 
-    username = req.username.strip()
-    password = req.password
+    username = username.strip()
 
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
@@ -236,3 +256,47 @@ async def auth_status(request: Request):
     if username and session_token and verify_session_token(username, session_token):
         return {"authenticated": True, "username": username}
     return {"authenticated": False}
+
+
+# ================= 系统安全（加密登录） =================
+
+class SecurityUpdateRequest(BaseModel):
+    encrypt_login: bool
+
+
+@router.get("/public-key")
+async def get_public_key():
+    """登录前获取公钥与加密开关状态（无需登录）"""
+    if not security.is_encrypt_enabled():
+        return {"encrypt": False}
+    pub = security.get_public_key_pem()
+    if not pub:
+        return {"encrypt": False}
+    return {"encrypt": True, "public_key": pub}
+
+
+@router.get("/security", dependencies=[Depends(require_auth)])
+async def get_security():
+    """获取安全配置状态"""
+    return {
+        "encrypt_login": security.is_encrypt_enabled(),
+        "has_key": security.get_public_key_pem() is not None,
+    }
+
+
+@router.post("/security", dependencies=[Depends(require_auth)])
+async def update_security(req: SecurityUpdateRequest):
+    """开启/关闭加密登录（即时生效）"""
+    enabled = security.enable_encrypt(req.encrypt_login)
+    return {
+        "status": "success",
+        "encrypt_login": enabled,
+        "has_key": security.get_public_key_pem() is not None,
+    }
+
+
+@router.post("/security/rotate", dependencies=[Depends(require_auth)])
+async def rotate_security():
+    """轮转密钥（即时生效，前端下次登录自动用新公钥）"""
+    security.rotate_keypair()
+    return {"status": "success", "message": "密钥已轮转"}

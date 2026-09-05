@@ -22,6 +22,7 @@ html_content = r"""
         <link rel="stylesheet" href="/static/katex.min.css">
         <script src="/static/katex.min.js"></script>
         <script src="/static/auto-render.min.js"></script>
+        <script src="/static/jsencrypt.min.js"></script>
         <style>
             html, body { height: 100%; height: 100dvh; }
             @supports (-webkit-touch-callout: none) { body { height: -webkit-fill-available; } }
@@ -366,6 +367,37 @@ html_content = r"""
             </div>
         </div>
 
+        <!-- 系统安全弹窗 -->
+        <div id="securityModal" class="modal-overlay fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 modal-hidden">
+            <div class="modal-content bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col border border-gray-700">
+                <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">系统安全</h3>
+                        <p class="text-xs text-gray-400 mt-1">开启后用户名密码以 RSA 加密传输，防内网嗅探</p>
+                    </div>
+                    <button onclick="closeSecurityModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="flex items-center justify-between bg-gray-700 rounded-xl px-4 py-3 border border-gray-600">
+                        <div>
+                            <p class="text-gray-200 font-medium text-sm">加密登录</p>
+                            <p class="text-xs text-gray-400 mt-0.5" id="securityStatus">加载中...</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="encryptToggle" onchange="toggleEncryptLogin()" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-500 rounded-full peer peer-checked:bg-teal-600 transition-colors"></div>
+                            <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                        </label>
+                    </div>
+                    <button onclick="rotateSecurityKey()" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors border border-gray-600 hover:border-teal-500/50">轮转密钥</button>
+                    <p class="text-xs text-gray-500">轮转会立即生成新密钥对，正在登录的请求会自动重试。开启 / 关闭 / 轮转均即时生效，无需重启服务。</p>
+                    <p id="securityErr" class="text-red-400 text-sm hidden"></p>
+                </div>
+            </div>
+        </div>
+
         <!-- 会话三点下拉菜单 -->
         <div id="sessionMenuBackdrop" class="fixed inset-0 z-40 hidden" onclick="closeSessionMenu()"></div>
         <div id="sessionMenu" class="hidden fixed z-50 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[180px]">
@@ -417,6 +449,7 @@ html_content = r"""
                 <button onclick="closeRightDrawer(); openKnowledgeModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-purple-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg><span class="text-gray-200 font-medium">知识库</span></button>
                 <button onclick="closeRightDrawer(); openDriverModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-orange-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"></rect><rect x="3" y="14" width="18" height="6" rx="2"></rect><line x1="7" y1="7" x2="7" y2="7.01"></line><line x1="7" y1="17" x2="7" y2="17.01"></line></svg><span class="text-gray-200 font-medium">驱动挂载</span></button>
                 <button onclick="closeRightDrawer(); openExternalCallModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-blue-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg><span class="text-gray-200 font-medium">外部调用</span></button>
+                <button onclick="closeRightDrawer(); openSecurityModal()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-teal-500/50 text-left"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg><span class="text-gray-200 font-medium">系统安全</span></button>
                 <button onclick="closeRightDrawer(); doLogout()" class="w-full flex items-center space-x-3 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-colors border border-gray-600 hover:border-red-500/50 text-left">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span class="text-gray-200 font-medium">退出登录</span>
@@ -1477,6 +1510,81 @@ html_content = r"""
                 loadApiKeys();
             }
 
+            // --- 系统安全（加密登录）函数 ---
+            const securityModal = document.getElementById('securityModal');
+
+            function openSecurityModal() {
+                document.getElementById('securityErr').classList.add('hidden');
+                loadSecurityStatus();
+                securityModal.classList.remove('modal-hidden');
+            }
+
+            function closeSecurityModal() {
+                securityModal.classList.add('modal-hidden');
+            }
+
+            async function loadSecurityStatus() {
+                const toggle = document.getElementById('encryptToggle');
+                const status = document.getElementById('securityStatus');
+                try {
+                    const res = await fetch('/api/auth/security');
+                    const data = await res.json();
+                    toggle.checked = !!data.encrypt_login;
+                    status.textContent = data.encrypt_login ? '已开启（RSA-2048 加密登录）' : '已关闭（明文传输）';
+                } catch(e) {
+                    status.textContent = '状态加载失败';
+                }
+            }
+
+            async function toggleEncryptLogin() {
+                const toggle = document.getElementById('encryptToggle');
+                const status = document.getElementById('securityStatus');
+                const errEl = document.getElementById('securityErr');
+                errEl.classList.add('hidden');
+                try {
+                    const res = await fetch('/api/auth/security', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ encrypt_login: toggle.checked })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        toggle.checked = !!data.encrypt_login;
+                        status.textContent = data.encrypt_login ? '已开启（RSA-2048 加密登录）' : '已关闭（明文传输）';
+                    } else {
+                        errEl.textContent = data.message || '设置失败';
+                        errEl.classList.remove('hidden');
+                        toggle.checked = !toggle.checked;
+                    }
+                } catch(e) {
+                    errEl.textContent = '设置失败: ' + e.message;
+                    errEl.classList.remove('hidden');
+                    toggle.checked = !toggle.checked;
+                }
+            }
+
+            async function rotateSecurityKey() {
+                const errEl = document.getElementById('securityErr');
+                errEl.classList.add('hidden');
+                if (!confirm('确定轮转密钥？轮转后旧公钥立即失效，正在登录的请求会自动重试。')) return;
+                try {
+                    const res = await fetch('/api/auth/security/rotate', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        const toast = document.createElement('div');
+                        toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                        toast.textContent = '密钥已轮转';
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 2000);
+                    } else {
+                        errEl.textContent = data.message || '轮转失败';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    errEl.textContent = '轮转失败: ' + e.message;
+                    errEl.classList.remove('hidden');
+                }
+            }
+
             // --- 登录/退出函数 ---
             let captchaId = '';
 
@@ -1493,6 +1601,44 @@ html_content = r"""
                 } catch(e) {
                     captchaId = '';
                 }
+            }
+
+            function rsaEncryptPayload(pem, dataObj) {
+                const encryptor = new JSEncrypt();
+                encryptor.setPublicKey(pem);
+                const cipher = encryptor.encrypt(JSON.stringify(dataObj));
+                if (!cipher) throw new Error('加密失败');
+                return cipher;
+            }
+
+            async function attemptLogin(loginData) {
+                // 获取公钥与加密开关
+                let encrypt = false;
+                let publicKey = '';
+                try {
+                    const pkRes = await fetch('/api/auth/public-key');
+                    const pkData = await pkRes.json();
+                    encrypt = !!pkData.encrypt;
+                    publicKey = pkData.public_key || '';
+                } catch(e) {
+                    encrypt = false;
+                }
+
+                // 构造提交体：加密开启则加密整个载荷，否则明文
+                let body;
+                if (encrypt && publicKey) {
+                    const encrypted = rsaEncryptPayload(publicKey, loginData);
+                    body = { encrypted };
+                } else {
+                    body = loginData;
+                }
+
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                return await res.json();
             }
 
             async function doLogin() {
@@ -1518,12 +1664,14 @@ html_content = r"""
                 err.classList.add('hidden');
                 
                 try {
-                    const res = await fetch('/api/auth/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, password, captcha_id: captchaId, captcha })
-                    });
-                    const data = await res.json();
+                    const loginData = { username, password, captcha_id: captchaId, captcha };
+                    let data = await attemptLogin(loginData);
+                    
+                    // 密钥已轮转 → 自动重新拉取公钥并重试一次
+                    if (data.status === 'key_rotated') {
+                        data = await attemptLogin(loginData);
+                    }
+                    
                     if (data.status === 'success') {
                         document.getElementById('loginOverlay').classList.add('hidden');
                         await initModels();

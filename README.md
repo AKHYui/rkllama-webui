@@ -17,6 +17,7 @@
 - 🧠 **系统提示词**：全局系统提示词 + 自定义提示词库（预设/新建/编辑/删除/激活）
 - ⚡ **引擎管理**：NPU 进程常驻、会话切换自动重启、一键强制重启引擎
 - 🌐 **外部调用（OpenAI 兼容）**：提供 `/v1/chat/completions`、`/v1/models` 接口，在「更多 → 外部调用」创建 API-Key 后，可用 OpenAI SDK、Chatbox、LobeChat 等外部工具直接调用板子上的大模型
+- 🔐 **系统安全（加密登录）**：可选开启 RSA 加密登录，前端用公钥加密整个登录载荷、后端私钥解密，防内网嗅探；支持密钥轮转，开关/轮转均即时生效
 
 ## 技术栈
 
@@ -227,6 +228,9 @@ llm_demo model_path max_new_tokens max_context_len \
 |---|---|---|
 | GET | `/api/auth/captcha` | 获取登录验证码（返回 id + 图片） |
 | POST | `/api/auth/login` `/api/auth/logout` | 登录/登出 |
+| GET | `/api/auth/public-key` | 获取登录公钥与加密开关（登录前调用） |
+| GET/POST | `/api/auth/security` | 获取/设置加密登录开关 |
+| POST | `/api/auth/security/rotate` | 轮转登录密钥 |
 | GET/POST | `/api/sessions` | 会话列表/创建 |
 | GET/DELETE | `/api/sessions/{id}` | 会话详情/删除 |
 | POST | `/api/chat` | 聊天（SSE） |
@@ -275,6 +279,17 @@ print(resp.choices[0].message.content)
 ```
 
 > ⚠️ **性能说明**：RKLLM 的 `llm_demo` 为有状态常驻进程，而 OpenAI 接口是无状态协议（每次请求带完整 `messages`）。因此每个 `/v1/chat/completions` 请求都会重启 NPU 引擎（清空 KV cache），首包含模型加载延迟（约 10–30 秒，视模型大小）。接口并发量固定为 1：上一个任务未结束时，后续请求会排队等待。
+
+## 系统安全（加密登录）
+
+在 WebUI 右上角「更多 → 系统安全」可开关加密登录与轮转密钥。
+
+- **开启加密登录**：后端生成 RSA-2048 密钥对（私钥存 DB），前端登录时先获取公钥，用 jsencrypt 加密整个登录载荷（用户名/密码/验证码），后端私钥解密验证，防内网嗅探。
+- **关闭加密登录**：登录载荷明文传输（默认）。
+- **密钥轮转**：立即生成新密钥对，旧公钥即刻失效；正在登录的请求会自动重新拉取公钥并重试。
+- **即时生效**：开关/轮转均为运行时操作，无需重启服务。
+
+> ⚠️ **安全边界**：本功能防「被动嗅探」，不防「主动中间人攻击」（MITM）。若需抵御 MITM，应给服务套 HTTPS。私钥存储在本地 SQLite 的 settings 表，请注意保护数据库文件。
 
 ## 本地开发（Windows）
 
