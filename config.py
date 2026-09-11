@@ -4,6 +4,9 @@ RKLLM NPU WebUI - 全局配置
 """
 
 import os
+import sys
+
+_base = os.path.dirname(os.path.abspath(__file__))
 
 # ================= 模型列表 =================
 MODELS = [
@@ -79,13 +82,27 @@ KB_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 if os.name == "nt":
     # 开发机(Windows) 回退到本地目录，便于界面开发
-    _base = os.path.dirname(os.path.abspath(__file__))
     EMBED_MODEL_DIR = os.path.join(_base, "models", "bge-small-zh-onnx")
     CHROMA_DIR = os.path.join(_base, "chroma_db")
 else:
     # 开发板 (RK3588 /opt/rkllama)
     EMBED_MODEL_DIR = "/opt/rkllama/models/bge-small-zh-onnx"
     CHROMA_DIR = "/opt/rkllama/chroma_db"
+
+# ================= 文生图 (SD / Anything V5 LCM) =================
+# 模型文件从 HuggingFace 下载后放置到 SD_MODEL_DIR：
+#   https://huggingface.co/AKHYui/anything-v5-rknn-512
+# 目录结构：text_encoder/ unet/ vae_decoder/ tokenizer/ scheduler/
+if os.name == "nt":
+    SD_MODEL_DIR = os.path.join(_base, "anything_v5")
+    SD_PYTHON = sys.executable
+else:
+    SD_MODEL_DIR = "/opt/anything_v5"
+    SD_PYTHON = "/opt/rkllama/.venv/bin/python"
+SD_WORKER = os.path.join(_base, "sd_worker.py")
+SD_OUTPUT_DIR = os.path.join(_base, "sd_output")
+SD_READY_TIMEOUT = 90   # worker 模型加载就绪超时（秒）
+SD_GEN_TIMEOUT = 150    # 单次生成超时（秒）
 
 
 def get_model_by_id(model_id):

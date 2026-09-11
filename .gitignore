@@ -3,6 +3,7 @@
 .conda/
 __pycache__/
 *.py[cod]
+.vscode/
 
 # WorkBuddy 工作目录（本地日志/记忆，不入库）
 .workbuddy/
@@ -24,3 +25,12 @@ backups/
 # 日志 (预留)
 *.log
 logs/
+
+# 模型与向量库（体积大，不放入 git）
+models/
+chroma_db/
+chroma_db.bak*/
+
+# 文生图
+anything_v5/
+sd_output/

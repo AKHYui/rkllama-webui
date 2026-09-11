@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import config
+import engine
 import knowledge
 from config import DB_FILE, PROMPT_SIGN
 from database import (
@@ -88,34 +89,37 @@ async def _generate_rkllm(
     kb_context: str = "",
 ):
     """rkllm 引擎的 SSE 生成器"""
-    async with npu.llm_lock:
-        try:
-            if not npu.llm_process or npu.llm_process.returncode is not None:
-                raise RuntimeError("NPU Process dead")
+    async with engine.engine_lock:
+        async with npu.llm_lock:
+            try:
+                # 确保 LLM 引擎就绪（若 SD 在跑先释放），必要时重启
+                await engine.ensure_llm_locked()
+                if not npu.llm_process or npu.llm_process.returncode is not None:
+                    raise RuntimeError("NPU Process dead")
 
-            # 检测会话切换 -> 重启 NPU
-            if session_id != npu.active_session_id:
-                print(f"\n[switch] {npu.active_session_id} -> {session_id}, restarting NPU...")
-                await npu.start_llm()
-                npu.active_session_id = session_id
+                # 检测会话切换 -> 重启 NPU
+                if session_id != npu.active_session_id:
+                    print(f"\n[switch] {npu.active_session_id} -> {session_id}, restarting NPU...")
+                    await npu.start_llm()
+                    npu.active_session_id = session_id
 
-            # 拼接上下文
-            actual_query = _build_rkllm_prompt(
-                clean_query, system_prompt, history_for_prompt, kb_context)
+                # 拼接上下文
+                actual_query = _build_rkllm_prompt(
+                    clean_query, system_prompt, history_for_prompt, kb_context)
 
-            npu.llm_process.stdin.write(
-                (actual_query + "\n").encode("utf-8"))
-            await npu.llm_process.stdin.drain()
+                npu.llm_process.stdin.write(
+                    (actual_query + "\n").encode("utf-8"))
+                await npu.llm_process.stdin.drain()
 
-        except Exception as e:
-            print(f"write error: {e}")
-            yield (
-                "data: " + json.dumps(
-                    {"content": "NPU process not ready, restarting..."},
-                    ensure_ascii=False) + "\n\n"
-            )
-            await npu.start_llm()
-            return
+            except Exception as e:
+                print(f"write error: {e}")
+                yield (
+                    "data: " + json.dumps(
+                        {"content": "NPU process not ready, restarting..."},
+                        ensure_ascii=False) + "\n\n"
+                )
+                await engine.ensure_llm_locked()
+                return
 
         # 流式读取输出（计时统计）
         byte_buffer = b""

@@ -36,6 +36,8 @@ html_content = r"""
             .safe-area-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
             .sidebar-transition { transition: transform 0.3s ease-in-out; }
             .drawer-right { transition: transform 0.3s ease-in-out; }
+            .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+            @keyframes sp{to{transform:rotate(360deg)}}
             /* 系统提示词弹窗样式 */
             .modal-overlay { transition: opacity 0.2s ease-in-out; }
             .modal-content { transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out; }
@@ -483,7 +485,11 @@ html_content = r"""
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                     </button>
                     <div id="statusDot" class="w-3 h-3 bg-yellow-500 rounded-full animate-pulse shrink-0" title="正在准备引擎"></div>
-                    <div class="relative w-36 sm:w-48">
+                    <div class="flex items-center bg-gray-700 rounded-lg p-0.5 shrink-0">
+                        <button id="modeChatBtn" onclick="switchAppMode('chat')" class="px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-white bg-blue-600">聊天</button>
+                        <button id="modeSdBtn" onclick="switchAppMode('sd')" class="px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-gray-300 hover:text-white">文生图</button>
+                    </div>
+                    <div class="relative w-36 sm:w-48" id="modelSelectWrap">
                         <select id="modelSelect" onchange="handleModelSwitch()" class="block appearance-none w-full bg-gray-700 border border-gray-600 text-white py-1.5 pl-3 pr-8 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium cursor-pointer truncate">
                             <option value="">加载中...</option>
                         </select>
@@ -516,16 +522,59 @@ html_content = r"""
                 </div>
             </header>
 
-            <main id="chatBox" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 scroll-smooth"></main>
+            <div id="chatMainView" class="flex-1 flex flex-col min-h-0">
+                <main id="chatBox" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 scroll-smooth"></main>
 
-            <footer class="bg-gray-800 p-3 sm:p-4 border-t border-gray-700 shrink-0 safe-area-bottom w-full">
-                <div class="max-w-4xl mx-auto relative flex items-end bg-gray-700 rounded-xl overflow-hidden border border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
-                    <textarea id="userInput" rows="1" class="w-full bg-transparent text-white text-base pl-4 pr-12 py-3 focus:outline-none resize-none overflow-y-auto max-h-32 min-h-[48px]" placeholder="输入问题，Enter 发送..."></textarea>
-                    <button onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
-                    </button>
+                <footer class="bg-gray-800 p-3 sm:p-4 border-t border-gray-700 shrink-0 safe-area-bottom w-full">
+                    <div class="max-w-4xl mx-auto relative flex items-end bg-gray-700 rounded-xl overflow-hidden border border-gray-600 focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
+                        <textarea id="userInput" rows="1" class="w-full bg-transparent text-white text-base pl-4 pr-12 py-3 focus:outline-none resize-none overflow-y-auto max-h-32 min-h-[48px]" placeholder="输入问题，Enter 发送..."></textarea>
+                        <button onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                        </button>
+                    </div>
+                </footer>
+            </div>
+
+            <!-- 文生图视图 -->
+            <div id="sdMainView" class="hidden flex-1 flex flex-col min-h-0">
+                <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+                    <div class="max-w-2xl mx-auto w-full space-y-4">
+                        <div class="bg-gray-800/70 rounded-2xl p-4 border border-gray-700 space-y-3">
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">提示词（Danbooru 标签，小写逗号分隔）</label>
+                                <textarea id="sdPrompt" rows="3" class="w-full bg-gray-900 border border-gray-600 rounded-xl p-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none">masterpiece, best quality, 1girl, long hair, blue eyes, smile, detailed</textarea>
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">负面提示词</label>
+                                <textarea id="sdNegPrompt" rows="2" class="w-full bg-gray-900 border border-gray-600 rounded-xl p-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none">worst quality, low quality, bad anatomy, bad hands, watermark</textarea>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="text-xs text-gray-400 block mb-1">步数 (1-8)</label>
+                                    <input id="sdSteps" type="number" min="1" max="8" value="4" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 block mb-1">CFG (1-4)</label>
+                                    <input id="sdCfg" type="number" min="1" max="4" step="0.1" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 block mb-1">Seed (-1 随机)</label>
+                                    <input id="sdSeed" type="number" value="-1" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                </div>
+                            </div>
+                            <button id="sdGenBtn" onclick="sdGenerate()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed">🚀 生成</button>
+                            <p id="sdStatus" class="text-xs text-gray-400 min-h-[1.2em]"></p>
+                            <div id="sdResult" class="rounded-xl border border-gray-700 overflow-hidden">
+                                <div class="flex items-center justify-center h-64 text-gray-500 text-sm">生成结果会显示在这里</div>
+                            </div>
+                            <div class="hint text-[11px] text-gray-500 leading-relaxed">
+                                CFG=1：忽略负面词，最快（约 36s）· CFG 1.5~2.5：启用负面词两遍推理（约 60s），提示词服从性更好
+                            </div>
+                        </div>
+                        <div id="sdHistory" class="flex gap-2 flex-wrap"></div>
+                    </div>
                 </div>
-            </footer>
+            </div>
         </div>
 
         <script>
@@ -2024,6 +2073,81 @@ html_content = r"""
                     }
                 }
             });
+
+            // ===== 聊天/文生图模式切换 =====
+            let appMode = 'chat';
+            let sdGenerating = false;
+            let sdHist = [];
+
+            function switchAppMode(mode) {
+                if (mode === appMode) return;
+                if (sdGenerating) return alert('文生图生成中，请稍候');
+                appMode = mode;
+                document.getElementById('chatMainView').classList.toggle('hidden', mode !== 'chat');
+                document.getElementById('sdMainView').classList.toggle('hidden', mode !== 'sd');
+                const mw = document.getElementById('modelSelectWrap');
+                const sp = document.getElementById('systemPromptBtn');
+                if (mw) mw.classList.toggle('hidden', mode !== 'chat');
+                if (sp) sp.classList.toggle('hidden', mode !== 'chat');
+                const chatBtn = document.getElementById('modeChatBtn');
+                const sdBtn = document.getElementById('modeSdBtn');
+                if (mode === 'chat') {
+                    chatBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-white bg-blue-600';
+                    sdBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-gray-300 hover:text-white';
+                } else {
+                    chatBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-gray-300 hover:text-white';
+                    sdBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-white bg-purple-600';
+                }
+            }
+
+            async function sdGenerate() {
+                if (sdGenerating) return;
+                const prompt = document.getElementById('sdPrompt').value.trim();
+                if (!prompt) { alert('请输入提示词'); return; }
+                const btn = document.getElementById('sdGenBtn');
+                const st = document.getElementById('sdStatus');
+                const result = document.getElementById('sdResult');
+                sdGenerating = true;
+                btn.disabled = true;
+                const t0 = Date.now();
+                st.textContent = '⏳ 正在切换引擎（卸载语言模型，加载文生图模型）…';
+                result.innerHTML = '<div class="flex items-center justify-center h-64 text-purple-300 text-sm"><span class="spin mr-2"></span>NPU 推理中…</div>';
+                try {
+                    const res = await fetch('/api/sd/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prompt: prompt,
+                            negative_prompt: document.getElementById('sdNegPrompt').value.trim(),
+                            steps: parseInt(document.getElementById('sdSteps').value, 10) || 4,
+                            cfg: parseFloat(document.getElementById('sdCfg').value) || 1.0,
+                            seed: parseInt(document.getElementById('sdSeed').value, 10) || -1
+                        })
+                    });
+                    if (!res.ok) {
+                        let msg = '生成失败';
+                        try { const d = await res.json(); msg = d.message || msg; } catch(e) {}
+                        st.textContent = '❌ ' + msg;
+                        result.innerHTML = '<div class="flex items-center justify-center h-64 text-red-400 text-sm">' + msg + '</div>';
+                        return;
+                    }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const secs = ((Date.now() - t0) / 1000).toFixed(1);
+                    st.textContent = '✅ 完成，耗时 ' + secs + 's';
+                    result.innerHTML = '<img src="' + url + '" class="w-full block" alt="生成结果">';
+                    sdHist.unshift(url);
+                    if (sdHist.length > 8) sdHist.pop();
+                    const histEl = document.getElementById('sdHistory');
+                    histEl.innerHTML = sdHist.map(u => '<img src="' + u + '" class="w-16 h-16 object-cover rounded-lg border border-gray-700 cursor-pointer hover:border-purple-500">').join('');
+                    Array.from(histEl.children).forEach(im => im.onclick = () => { result.innerHTML = '<img src="' + im.src + '" class="w-full block">'; });
+                } catch(e) {
+                    st.textContent = '❌ 网络错误: ' + e.message;
+                } finally {
+                    sdGenerating = false;
+                    btn.disabled = false;
+                }
+            }
 
             window.addEventListener('DOMContentLoaded', async () => {
                 // 先检查登录状态

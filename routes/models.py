@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 import config
+import engine
 import npu
 from database import (
     get_models, get_model_by_id, model_id_exists,
@@ -107,21 +108,21 @@ async def switch_model_endpoint(req: SwitchModelRequest):
         return {"status": "error", "message": "model not found"}
 
     npu.current_model_id = req.model_id
-    await npu.start_llm()
+    await engine.restart_llm()
     return {"status": "success", "message": f"switched to {req.model_id}"}
 
 
 @router.post("/npu/restart", dependencies=[Depends(require_auth)])
 async def restart_npu():
     """强制重启 NPU 进程"""
-    await npu.start_llm()
+    await engine.restart_llm()
     return {"status": "success", "message": "NPU restarted"}
 
 
 @router.post("/reset", dependencies=[Depends(require_auth)])
 async def reset_npu_alias():
     """旧前端兼容别名：/api/reset 等价于 /api/npu/restart"""
-    await npu.start_llm()
+    await engine.restart_llm()
     return {"status": "success", "message": "NPU 进程已重置，内存已清空"}
 
 
@@ -143,7 +144,7 @@ async def update_sampling(req: SamplingUpdateRequest):
     if req.repeat_penalty is not None:
         config.SAMPLING_PARAMS["repeat_penalty"] = req.repeat_penalty
 
-    await npu.start_llm()
+    await engine.restart_llm()
     return {
         "status": "success",
         "message": "sampling updated",

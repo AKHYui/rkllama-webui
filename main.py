@@ -81,6 +81,7 @@ from routes.system_prompt import router as system_prompt_router
 from routes.prompts import router as prompts_router
 from routes.knowledge import router as knowledge_router
 from routes.driver import router as driver_router
+from routes.sd import router as sd_router
 from routes.apikeys import router as apikeys_router
 from routes.openai_compat import router as openai_router
 from frontend import router as frontend_router
@@ -93,6 +94,7 @@ app.include_router(system_prompt_router)
 app.include_router(prompts_router)
 app.include_router(knowledge_router)
 app.include_router(driver_router)
+app.include_router(sd_router)
 app.include_router(apikeys_router)
 app.include_router(openai_router)
 app.include_router(frontend_router)
