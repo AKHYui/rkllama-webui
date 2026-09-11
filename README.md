@@ -18,6 +18,7 @@
 - ⚡ **引擎管理**：NPU 进程常驻、会话切换自动重启、一键强制重启引擎
 - 🌐 **外部调用（OpenAI 兼容）**：提供 `/v1/chat/completions`、`/v1/models` 接口，在「更多 → 外部调用」创建 API-Key 后，可用 OpenAI SDK、Chatbox、LobeChat 等外部工具直接调用板子上的大模型
 - 🔐 **系统安全（加密登录）**：可选开启 RSA 加密登录，前端用公钥加密整个登录载荷、后端私钥解密，防内网嗅探；支持密钥轮转，开关/轮转均即时生效
+- 🎨 **文生图（Anything V5 + LCM）**：顶栏切换"聊天/文生图"模式，RKNNLite 在 NPU 上跑 512×512 二次元文生图（LCM 4 步，约 36~60s）；与语言模型互斥——生成图时自动卸载 LLM、回聊天时自动卸载 SD 模型，内存即时归还
 
 ## 技术栈
 
@@ -27,6 +28,7 @@
 | 存储 | SQLite（会话/消息/模型/知识库/设置） |
 | 聊天 | SSE 流式输出，`llm_demo` 子进程 stdin/stdout 通信 |
 | 向量库 | ChromaDB 1.4 + onnxruntime 1.24，模型 `BAAI/bge-small-zh-v1.5`（ONNX，512 维） |
+| 文生图 | RKNNLite + diffusers LCMScheduler + transformers CLIPTokenizer，模型 Anything V5（RKNN） |
 | 前端 | 内联单页应用（Tailwind + marked + highlight.js + KaTeX），无构建步骤 |
 
 ## 目录结构
@@ -247,8 +249,48 @@ llm_demo model_path max_new_tokens max_context_len \
 | GET/POST | `/api/sessions/{id}/kb` | 会话绑定知识库 |
 | GET/PUT | `/api/driver` | llm_demo 路径 |
 | POST | `/api/npu/restart` | 重启引擎（兼容旧别名 `/api/reset`） |
+| GET | `/api/sd/status` | 文生图引擎状态（模式/可用性） |
+| POST | `/api/sd/generate` | 文生图生成（同步返回 PNG） |
 
 除登录接口外均需登录态（Session Cookie）。
+
+## 文生图（Anything V5 / LCM）
+
+顶栏切换到"文生图"模式即可使用。语言模型与文生图模型**互斥**（共享 NPU/内存）：
+生成图时自动卸载 `llm_demo`，回聊天时自动卸载 SD 模型，切换即时归还内存。
+
+### 1. 安装依赖（一条命令）
+
+```bash
+cd /opt/rkllama && bash scripts/install_sd.sh
+```
+
+脚本会向 rkllama venv 安装 `diffusers`、`ruamel.yaml`，并把系统的 `rknnlite` 复制进 venv
+（rknnlite 不在 PyPI，须从系统 dist-packages 或 rknn-toolkit2 发布包获取）。
+
+### 2. 放置模型文件
+
+模型文件体积大，不入 git。请从 HuggingFace 下载后放到 `/opt/anything_v5`：
+
+```
+https://huggingface.co/AKHYui/anything-v5-rknn-512
+
+/opt/anything_v5/
+├── text_encoder/model.rknn        (CLIP 文本编码器)
+├── unet/model.rknn                (LCM-UNet，约 1.8GB)
+├── vae_decoder/model.rknn         (VAE 解码器)
+├── tokenizer/                     (CLIP tokenizer)
+└── scheduler/scheduler_config.json (LCM scheduler)
+```
+
+> 模型路径可在 `config.py` 的 `SD_MODEL_DIR` 中修改（默认 `/opt/anything_v5`）。
+> 依赖或模型缺失时，`/api/sd/status` 会返回 `available:false` 及原因，其余功能不受影响。
+
+### 3. 使用
+
+- 顶栏点击"文生图"进入生成界面：填写提示词（Danbooru 标签，逗号分隔）、负面提示词、步数(1-8)、CFG(1-4)、Seed(-1 随机)
+- 点击"生成"，首次会先卸载语言模型并加载文生图模型（约 5~15s），再 NPU 推理 36~60s，返回 PNG
+- 回聊天时，发送第一条消息会自动卸载 SD 模型并重新加载语言模型（约 10~30s）
 
 ## OpenAI 兼容接口（外部调用）
 
