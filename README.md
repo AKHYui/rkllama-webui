@@ -36,22 +36,34 @@
 ```
 rkllama-webui/
 ├── main.py                 # 入口：组装 FastAPI、中间件、注册路由
-├── config.py               # 全局配置：默认模型种子、采样参数、知识库参数、路径
-├── database.py             # SQLite：建表、迁移、各实体 CRUD
+├── config.py               # 全局配置：默认模型种子、采样参数、知识库/文生图参数、路径
+├── database.py             # SQLite：建表、迁移、各实体 CRUD（含 API-Key、设置）
 ├── npu.py                  # llm_demo 子进程管理（常驻、会话切换重启）
+├── engine.py               # 引擎互斥核心：LLM 与文生图全局串行、双向切换
 ├── knowledge.py            # 向量模块：bge-small-zh 推理、分块、ChromaDB 检索
+├── sd.py                   # 文生图引擎：sd_worker 子进程管理（拉起/通信/kill）
+├── sd_worker.py            # 文生图 worker 子进程（RKNNLite + LCM，stdin/stdout JSON）
+├── security.py             # RSA 加密登录：密钥对生成/解密/轮转
 ├── engine_llama.py         # llama.cpp 引擎（预留，需自行补齐 LLAMA_CLI 等配置）
-├── frontend.py             # 前端单页应用（HTML/JS/CSS）
+├── frontend.py             # 前端单页应用（HTML/JS/CSS，含聊天/文生图模式切换）
 ├── routes/
-│   ├── auth.py             # 登录/登出/改密
+│   ├── auth.py             # 登录/登出/改密/验证码
 │   ├── chat.py             # 聊天 SSE + 知识库注入
 │   ├── models.py           # 模型列表/挂载 CRUD/切换/采样
 │   ├── sessions.py         # 会话管理
 │   ├── system_prompt.py    # 系统提示词
 │   ├── prompts.py          # 提示词库
 │   ├── knowledge.py        # 知识库 CRUD/文档入库/检索/绑定
-│   └── driver.py           # llm_demo 路径配置
-├── static/                 # 前端静态资源（tailwind/marked/katex 等）
+│   ├── driver.py           # llm_demo 路径配置
+│   ├── sd.py               # 文生图 API（状态/生成）
+│   ├── apikeys.py          # API-Key 管理（外部调用）
+│   └── openai_compat.py    # OpenAI 兼容接口（/v1）
+├── scripts/
+│   └── install_sd.sh       # 文生图依赖一键安装
+├── deploy/
+│   ├── llm_demo.cpp        # llm_demo 采样参数补丁源码（rknn-llm v1.3.0）
+│   └── llm_demo            # 补丁版编译好的可执行文件（ROCK5T 实测）
+├── static/                 # 前端静态资源（tailwind/marked/katex/jsencrypt 等）
 └── requirements.txt        # 完整依赖（开发板 pip freeze 导出）
 ```
 
@@ -64,6 +76,7 @@ rkllama-webui/
   - `llm_demo`（rkllm-toolkit 演示程序，默认 `/usr/local/bin/llm_demo`，可在"驱动挂载"中修改）
   - .rkllm 格式模型文件（如 `Qwen3-4B-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm`）
   - （可选，启用知识库）`BAAI/bge-small-zh-v1.5` ONNX 模型
+  - （可选，启用文生图）Anything V5 RKNN 模型 + `scripts/install_sd.sh`（见"文生图"章节）
 
 ## 部署安装（开发板）
 
