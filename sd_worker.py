@@ -190,6 +190,9 @@ def main():
             img.save(path, format="PNG")
             logger.info("generated in %.1fs -> %s", time.time() - t0, path)
             _emit({"event": "result", "id": rid, "path": path})
+        except PermissionError:
+            _emit({"event": "error", "id": rid,
+                   "message": f"输出目录不可写: {args.output_dir}，请检查服务用户对该目录的写权限"})
         except Exception as e:
             logger.exception("generate failed")
             _emit({"event": "error", "id": rid, "message": str(e)})

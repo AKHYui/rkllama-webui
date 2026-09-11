@@ -42,6 +42,10 @@ async def start_worker_locked():
     if not os.path.isdir(config.SD_MODEL_DIR):
         raise RuntimeError(f"模型目录不存在: {config.SD_MODEL_DIR}")
     os.makedirs(config.SD_OUTPUT_DIR, exist_ok=True)
+    if not os.access(config.SD_OUTPUT_DIR, os.W_OK):
+        raise RuntimeError(
+            f"SD 输出目录不可写: {config.SD_OUTPUT_DIR}\n"
+            f"请执行: chown -R <服务用户>:<服务用户组> {config.SD_OUTPUT_DIR}")
 
     _worker_ready = asyncio.Event()
     env = os.environ.copy()
