@@ -36,6 +36,7 @@ html_content = r"""
             .safe-area-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
             .sidebar-transition { transition: transform 0.3s ease-in-out; }
             .drawer-right { transition: transform 0.3s ease-in-out; }
+            .sidebar-anim { transition: transform .4s cubic-bezier(.4,0,.2,1), width .4s cubic-bezier(.4,0,.2,1); }
             .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
             @keyframes sp{to{transform:rotate(360deg)}}
             /* 系统提示词弹窗样式 */
@@ -461,21 +462,33 @@ html_content = r"""
 
         
         <!-- 左侧会话侧边栏 -->
-        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col z-30 transform -translate-x-full md:translate-x-0 sidebar-transition shrink-0">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-200">所有对话</h2>
-                <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col z-30 transform -translate-x-full md:translate-x-0 sidebar-anim shrink-0 md:overflow-hidden">
+            <div class="w-64 shrink-0 flex flex-col h-full">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-gray-200">所有对话</h2>
+                    <div class="flex items-center gap-1">
+                        <button onclick="setSidebarCollapsed(true)" id="sidebarCollapseBtn" class="hidden md:inline-flex text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors" title="收起侧边栏">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <button onclick="createNewSession()" class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 transition-colors shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        <span>新建聊天</span>
+                    </button>
+                </div>
+                <div id="sessionList" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
             </div>
-            <div class="p-3">
-                <button onclick="createNewSession()" class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 transition-colors shadow-sm">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                    <span>新建聊天</span>
-                </button>
-            </div>
-            <div id="sessionList" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
         </aside>
+
+        <!-- 侧边栏收起后的浮动展开按钮（桌面端） -->
+        <button id="sidebarExpandBtn" onclick="setSidebarCollapsed(false)" class="hidden fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-gray-800 border border-gray-700 border-l-0 rounded-r-lg p-1.5 text-gray-400 hover:text-white hover:border-purple-500/50 transition-colors shadow-lg" title="展开侧边栏">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 18l6-6-6-6"></path></svg>
+        </button>
 
         <!-- 右侧主聊天区域 -->
         <div class="flex-1 flex flex-col min-w-0 h-full relative">
@@ -2078,6 +2091,32 @@ html_content = r"""
             let appMode = 'chat';
             let sdGenerating = false;
             let sdHist = [];
+            let sidebarCollapsed = false;
+
+            // 侧边栏伸缩：桌面端宽度动画，移动端沿用抽屉
+            function setSidebarCollapsed(collapsed) {
+                sidebarCollapsed = collapsed;
+                const expandBtn = document.getElementById('sidebarExpandBtn');
+                if (window.innerWidth >= 768) {
+                    sidebar.classList.toggle('md:w-0', collapsed);
+                    if (expandBtn) expandBtn.classList.toggle('hidden', !collapsed);
+                } else {
+                    if (collapsed) {
+                        sidebar.classList.add('-translate-x-full');
+                        mobileOverlay.classList.add('hidden');
+                    }
+                    if (expandBtn) expandBtn.classList.add('hidden');
+                }
+            }
+
+            window.addEventListener('resize', () => {
+                if (window.innerWidth < 768) {
+                    // 切到移动端：重置为抽屉默认（收起）
+                    sidebar.classList.remove('md:w-0');
+                    const eb = document.getElementById('sidebarExpandBtn');
+                    if (eb) eb.classList.add('hidden');
+                }
+            });
 
             function switchAppMode(mode) {
                 if (mode === appMode) return;
@@ -2098,6 +2137,8 @@ html_content = r"""
                     chatBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-gray-300 hover:text-white';
                     sdBtn.className = 'px-2.5 py-1 text-xs rounded-md transition-colors font-medium text-white bg-purple-600';
                 }
+                // 模式联动：聊天展开侧边栏，文生图收起侧边栏
+                setSidebarCollapsed(mode === 'sd');
             }
 
             async function sdGenerate() {
