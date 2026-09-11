@@ -29,7 +29,7 @@ _LOG_LEVELS = {
     "CRITICAL": 50, "FATAL": 50, "ERROR": 40,
     "WARN": 30, "WARNING": 30, "INFO": 20, "DEBUG": 10, "NOTSET": 0,
 }
-logging.basicConfig(level=logging.INFO, stream=sys.stdout,
+logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                     format="%(asctime)s [sd_worker] %(message)s")
 logging._nameToLevel.update(_LOG_LEVELS)
 logger = logging.getLogger("sd_worker")
@@ -40,7 +40,8 @@ def _repair_logging():
 
 
 def _emit(obj):
-    """向 stdout 输出一行 JSON（flush 保证及时）"""
+    """向 stdout 输出一行 JSON（flush 保证及时）。
+    注：RKNN 运行时可能向 stdout 打日志（非 JSON），由 WebUI 读取端跳过。"""
     sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
